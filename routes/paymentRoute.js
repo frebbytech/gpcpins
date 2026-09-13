@@ -132,6 +132,8 @@ const rlimit = rateLimit({
 
 const limit = pLimit(3);
 
+const isProduction = process.env.NODE_ENV === "production";
+
 router.get(
   "/vouchers",
   verifyOptionalToken,
@@ -460,7 +462,6 @@ router.get(
           getBrassicaBalance(),
         ]);
 
-
       res.status(200).json({
         pos: posResponse?.value?.amount || 0,
         pre: preResponse?.value?.amount || 0,
@@ -579,7 +580,7 @@ router.get(
       // ---------------- FETCH TRANSACTION + PAYMENT ----------------
 
       const transaction = await getTransaction(serviceType, id, trx);
-      // console.log(transaction)
+      console.log(transaction);
 
       if (!transaction) {
         await trx.rollback();
@@ -1476,8 +1477,10 @@ router.post(
       };
 
       try {
-        await sendBrassicaMoney(momoPayload);
-        paymentStatus = "pending";
+        if (isProduction) {
+          await sendBrassicaMoney(momoPayload);
+          paymentStatus = "pending";
+        }
       } catch (error) {
         console.log(error);
         return res
@@ -1495,13 +1498,13 @@ router.post(
         year: moment().year(),
         provider: mobilePartner,
         mode: "Mobile Money",
-        status: paymentStatus,
         externalTransactionId: null,
         partner: JSON.stringify({
           // ...response,
           phonenumber: phoneNumber,
           mobilePartner,
         }),
+        status: isProduction ? paymentStatus : "completed",
       });
 
       await trx("wallet_transactions").insert({
@@ -1514,7 +1517,7 @@ router.post(
         comment: `wallet top-up`,
         phonenumber: userPhone,
         amount: amount,
-        status: paymentStatus,
+         status: isProduction ? paymentStatus : "completed",
         reference,
       });
 
@@ -1526,7 +1529,7 @@ router.post(
         paymentId,
         reference: reference,
         transactionId: paymentId,
-        status: paymentStatus,
+        status:isProduction ? paymentStatus : "completed",
         categoryType: "wallet",
       });
     } catch (error) {

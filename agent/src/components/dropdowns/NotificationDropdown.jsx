@@ -7,7 +7,7 @@ import {
   Tooltip,
 } from '@mui/material';
 import _ from 'lodash';
-import { CustomContext } from '../../context/providers/CustomProvider';
+import { CustomContext, useCustomContext } from '../../context/providers/CustomProvider';
 import { useContext, useEffect } from 'react';
 import {
   Close,
@@ -20,7 +20,7 @@ import Menu from '@mui/icons-material/Menu';
 
 const NotificationDropdown = ({ display, setClose }) => {
   const navigate = useNavigate();
-  const { notifications } = useContext(CustomContext);
+  const { notifications } = useCustomContext();
   const handleClose = () => setClose(false);
 
   const goToTransactions = () => {

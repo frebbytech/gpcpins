@@ -1,24 +1,21 @@
 // import { isMobileBrowser } from "../config/isMobileBrowser";
-import { saveToken, saveUser } from "../config/sessionHandler";
+import axios from "axios";
+import { getToken, saveToken, saveUser } from "../config/sessionHandler";
 import api from "./customAxios";
-// import cookie from "js-cookie";
 
-// const ACCESS_EXPIRATION = new Date(Date.now() + 3600000);
+const BASE_URL = import.meta.env.VITE_BASE_URL;
 
 export const getAgent = async () => {
+  const token = getToken();
   try {
-    const res = await api({
+    const res = await axios({
       method: "GET",
-      url: `/agents/auth`,
+      url: `${BASE_URL}/agents/auth`,
+      withCredentials: true,
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+      },
     });
-
-    // cookie.set("_USSID_kcYa__", JSON.stringify(res.data?.user), {
-    //   secure: true,
-    //   sameSite: "None",
-    //   expires: ACCESS_EXPIRATION,
-    // });
-
-    saveUser(res.data?.user);
 
     return res.data;
   } catch (error) {
@@ -59,7 +56,6 @@ export const loginAgent = async (agentInfo) => {
 
     saveToken(res.data?.accessToken, res.data?.refreshToken);
     saveUser(res.data?.accessToken);
-
 
     return res.data;
   } catch (error) {
@@ -126,16 +122,14 @@ export const verifyAgentOTP = async (data) => {
   }
 };
 
-
 export const verifyUserIdentity = async (data) => {
-
   try {
     const res = await api({
       method: "GET",
       url: `/agents/verify-identity`,
       params: {
-        ...data
-      }
+        ...data,
+      },
     });
 
     saveToken(res.data?.accessToken, res.data?.refreshToken);
@@ -270,7 +264,6 @@ export const updateAgentBusiness = async (data) => {
   }
 };
 
-
 export const getWalletStatus = async () => {
   try {
     const res = await api({
@@ -282,7 +275,8 @@ export const getWalletStatus = async () => {
   } catch (error) {
     throw error.response.data;
   }
-};export const disableWallet = async () => {
+};
+export const disableWallet = async () => {
   try {
     const res = await api({
       method: "GET",
@@ -398,7 +392,10 @@ export const sendAirtime = async (data) => {
   try {
     const res = await api({
       method: "POST",
-      url: data?.type === 'single' ? `/agents/top-up/airtime` : `/agents/top-up/bulk/airtime`,
+      url:
+        data?.type === "single"
+          ? `/agents/top-up/airtime`
+          : `/agents/top-up/bulk/airtime`,
       data,
     });
 
@@ -442,7 +439,7 @@ export const removeLogs = async (data) => {
     const res = await api({
       method: "PUT",
       url: `/agents/logs`,
-      data
+      data,
     });
 
     return res.data;
@@ -450,7 +447,6 @@ export const removeLogs = async (data) => {
     throw error.response.data;
   }
 };
-
 
 export const getPhoneNumberToken = async ({ token }) => {
   try {

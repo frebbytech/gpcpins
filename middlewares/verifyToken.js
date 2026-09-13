@@ -104,9 +104,15 @@ const verifyRefreshToken = async (req, res, next) => {
 
   // 2. Read the specific cookie dedicated to that subdomain
 
-  if (origin.includes("admin.gpcpins.com") || origin.includes("://admin.gpcpins.com")) {
+  if (
+    origin.includes("admin.gpcpins.com") ||
+    origin.includes("://admin.gpcpins.com")
+  ) {
     // If it's the admin panel, look ONLY for the admin cookie
     cookieToken = req.signedCookies.SSIDR;
+  } else if (origin.includes("agent.gpcpins.com")) {
+    // If it's the agent panel, look ONLY for the agent cookie
+    cookieToken = req.signedCookies.RSSIDR;
   } else if (
     origin.includes("://gpcpins.com") ||
     origin.includes("gpcpins.com")
@@ -115,7 +121,10 @@ const verifyRefreshToken = async (req, res, next) => {
     cookieToken = req.signedCookies.USSIDR;
   } else {
     // Fallback for Development (localhost) or fallback check
-    cookieToken = req.signedCookies.SSIDR || req.signedCookies.USSIDR;
+    cookieToken =
+      req.signedCookies.SSIDR ||
+      req.signedCookies.USSIDR ||
+      req.signedCookies.RSSIDR;
   }
 
   if (!cookieToken) {
@@ -130,6 +139,7 @@ const verifyRefreshToken = async (req, res, next) => {
 
   jwt.verify(cookieToken, process.env.TOKEN_REFRESH, async (err, user) => {
     if (err) {
+      res.clearCookie("RSSIDR");
       res.clearCookie("SSIDR");
       res.clearCookie("USSIDR");
 
@@ -138,7 +148,9 @@ const verifyRefreshToken = async (req, res, next) => {
 
     const refreshTokenName = adminRoles.includes(user?.role)
       ? "SSIDR"
-      : "USSIDR";
+      : user?.role === process.env.AGENT_ID
+        ? "RSSIDR"
+        : "USSIDR";
     let authUser = await knex("vw_users_with_roles")
       .select("*")
       .where("id", user?.sub)
@@ -146,6 +158,7 @@ const verifyRefreshToken = async (req, res, next) => {
 
     if (Boolean(authUser?.is_enabled) === false) {
       res.clearCookie("SSIDR");
+      res.clearCookie("RSSIDR");
       res.clearCookie("USSIDR");
       return res.status(403).json("Session has expired.");
     }

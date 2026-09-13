@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Container,
+  // Unstable_Grid2 as Grid,
   Grid,
   Stack,
   Typography,
@@ -220,7 +221,7 @@ function Overall() {
         </CustomCard>
 
         <Grid container spacing={1} my={2}>
-          <Grid item xs={12} md={7}>
+          <Grid item  xs={12} md={7}>
             <CustomCard title="Recent Transactions">
               <PlainTable
                 isLoading={summary.isLoading}
@@ -244,7 +245,7 @@ function Overall() {
         </Grid>
 
         <Grid container spacing={1}>
-          <Grid item xs={12} md={4}>
+          <Grid item  xs={12} md={4}>
             <CustomCard title="Today Sales ">
               <Stack
                 py={2}

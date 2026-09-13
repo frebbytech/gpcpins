@@ -4,7 +4,7 @@ export const getAllNotifications = async () => {
   try {
     const res = await api({
       method: 'GET',
-      url: `/notifications/agent`,
+      url: `/notifications/user`,
     });
 
     return res.data;

@@ -2,7 +2,7 @@ import cookie from "js-cookie";
 import _ from "lodash";
 
 // const ACCESS_TOKEN_EXPIRY_MINUTES = 3600;
-const ACCESS_TOKEN_EXPIRY_MINUTES = 1;
+const ACCESS_TOKEN_EXPIRY_MINUTES = 15;
 const minutes = (m) => m / (24 * 60);
 
 export const saveUser = (user) => {

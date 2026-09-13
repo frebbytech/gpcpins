@@ -49,6 +49,37 @@ export const getAllBulkAirtimePayment = async ({ startDate, endDate }) => {
     throw error.response.data;
   }
 };
+
+export const ConfirmPayment = async ({ id, serviceType }) => {
+  try {
+    const res = await api({
+      method: "GET",
+      url: `/payment/confirm/${id}/${serviceType}`,
+    });
+
+    return res.data;
+  } catch (error) {
+    throw error.response.data;
+  }
+};
+export const reConfirmPayment = async ({ paymentReference, type }) => {
+  try {
+    const res = await api({
+      method: "POST",
+      url: `/payment/re-confirm`,
+      data: {
+        type,
+        paymentReference,
+      },
+    });
+
+    return res.data;
+  } catch (error) {
+    throw error.response.data;
+  }
+};
+
+
 // airtime
 export const completeBulkAirtimePayment = async ({ id }) => {
   try {

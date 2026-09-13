@@ -160,7 +160,7 @@ export default function DataTable({
   const clientRows = useMemo(() => {
     if (mode !== "client") return null;
 
-    let rows = data.map((row, index) => ({ row, index }));
+let rows = data ? data?.map((row, index) => ({ row, index })) : [];
 
     if (searchValue) {
       const needle = searchValue.toLowerCase();

@@ -1,4 +1,4 @@
-import { useContext, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Box,
   Stack,
@@ -29,21 +29,23 @@ import DOMPurify from "dompurify";
 import moment from "moment";
 import Swal from "sweetalert2";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CustomContext } from "../../context/providers/CustomProvider";
-import { AuthContext } from "../../context/providers/AuthProvider";
+import {
+  useCustomContext,
+} from "@/context/providers/CustomProvider";
+import {  useAuth } from "@/context/providers/AuthProvider";
 import {
   getAllNotifications,
   markAllNotificationsAsRead,
   deleteNotifications,
-} from "../../api/notificationAPI";
-import AnimatedContainer from "../../components/animations/AnimatedContainer";
-import GlobalSpinner from "../../components/spinners/GlobalSpinner";
-import { globalAlertType } from "../../components/alert/alertType";
+} from "@/api/notificationAPI";
+import AnimatedContainer from "@/components/animations/AnimatedContainer";
+import GlobalSpinner from "@/components/spinners/GlobalSpinner";
+import { globalAlertType } from "@/components/alert/alertType";
 
 const Notifications = () => {
   const theme = useTheme();
-  const { user } = useContext(AuthContext);
-  const { customDispatch } = useContext(CustomContext);
+  const { user } = useAuth();
+  const { customDispatch } = useCustomContext();
   const queryClient = useQueryClient();
 
   // --- UI state ---
@@ -57,7 +59,7 @@ const Notifications = () => {
     isError,
     error,
   } = useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications",user?.id],
     queryFn: () => getAllNotifications(),
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -70,7 +72,7 @@ const Notifications = () => {
       customDispatch(
         globalAlertType("success", "All notifications marked as read"),
       );
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications",user?.id] });
     },
     onError: (err) => {
       customDispatch(
@@ -84,7 +86,7 @@ const Notifications = () => {
     mutationFn: deleteNotifications,
     onSuccess: () => {
       customDispatch(globalAlertType("info", "All notifications deleted"));
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications",user?.id] });
     },
     onError: (err) => {
       customDispatch(
@@ -97,14 +99,18 @@ const Notifications = () => {
   });
 
   // --- Derived data ---
-  const unreadCount = notifications.filter((n) => n.active === 1).length;
+  const unreadCount = notifications.filter(
+    (item) => item?.isRead === false,
+  ).length;
 
   const filteredNotifications = useMemo(() => {
     let filtered = notifications;
 
     // Filter by tab
-    if (tabValue === 1) filtered = filtered.filter((n) => n.active === 1);
-    if (tabValue === 2) filtered = filtered.filter((n) => n.active === 0);
+    if (tabValue === 1)
+      filtered = filtered.filter((item) => item?.isRead === false);
+    if (tabValue === 2)
+      filtered = filtered.filter((item) => item?.isRead === true);
 
     // Filter by search term (title or message)
     if (searchTerm.trim()) {

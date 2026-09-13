@@ -7,6 +7,14 @@ export default defineConfig({
     port: 5003,
   },
   plugins: [react()],
+     optimizeDeps: {
+    include: [
+      '@mui/material',
+      '@emotion/styled',
+      '@emotion/react',
+      '@mui/icons-material'
+    ]
+  },
   resolve: {
     alias: {
       '@': '/src', // Add this alias

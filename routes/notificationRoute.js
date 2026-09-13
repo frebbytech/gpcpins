@@ -266,7 +266,6 @@ router.get(
   "/verifier",
   verifyToken,
   asyncHandler(async (req, res) => {
-   
     const { id: userId, createdAt: userCreatedAt } = req.user;
 
     // ---------- VALIDATION ----------
@@ -439,7 +438,9 @@ router.put(
 
     const { ids } = req.body;
 
-    await knex("notifications").where("user_id", id).update({ active: false });
+    await knex("notifications")
+      .where("user_id", id)
+      .update({ active: false, is_read: true });
 
     res.sendStatus(204);
   }),

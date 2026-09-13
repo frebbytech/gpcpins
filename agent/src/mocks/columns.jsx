@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import _ from "lodash";
 import {
   Button,
@@ -9,17 +10,18 @@ import {
 } from "@mui/material";
 import { currencyFormatter, IMAGES } from "../constants";
 import moment from "moment";
+import { format } from "date-fns";
 
 export const BROADCAST_MESSAGES_COLUMNS = [
   {
-    title: "ID",
-    field: "_id",
+    headerName: "ID",
+    field: "id",
     hidden: true,
   },
   {
     field: "createdAt",
-    title: "Date of Issue",
-    render: (rowData) => {
+    headerName: "Date of Issue",
+    renderCell: (rowData) => {
       const date = new Date(rowData?.createdAt).toDateString();
       const time = new Date(rowData?.createdAt).toLocaleTimeString();
       return (
@@ -38,15 +40,15 @@ export const BROADCAST_MESSAGES_COLUMNS = [
     },
   },
   {
-    title: "Recipient",
+    headerName: "Recipient",
     field: "recipient",
   },
 
   {
     field: "type",
-    title: "Type",
+    headerName: "Type",
     export: true,
-    render: ({ type }) => (
+    renderCell: ({ type }) => (
       <Chip
         label={type === "Email" ? "Email" : "SMS"}
         color={type === "Email" ? "primary" : "secondary"}
@@ -56,9 +58,9 @@ export const BROADCAST_MESSAGES_COLUMNS = [
   },
 
   {
-    title: "Message",
+    headerName: "Message",
     field: "body",
-    render: (rowData) => {
+    renderCell: (rowData) => {
       return (
         <ListItemText
           primary={rowData?.title}
@@ -80,32 +82,19 @@ export const BROADCAST_MESSAGES_COLUMNS = [
 
 export const recentTransactionColumns = [
   {
-    title: "ID",
-    field: "_id",
+    headerName: "ID",
+    field: "id",
     hidden: true,
   },
   {
-    title: "Date",
+    headerName: "Date",
     field: "date",
-    render: (rowData) => (
-      <ListItemText
-        primary={moment(new Date(rowData.createdAt)).format("Do MMM,YYYY")}
-        secondary={moment(new Date(rowData.createdAt)).format("h:mm a")}
-        primaryTypographyProps={{
-          fontSize: 12,
-          color: "primary.main",
-        }}
-        secondaryTypographyProps={{
-          fontSize: 12,
-          color: "info.main",
-        }}
-      />
-    ),
+    renderCell: (rowData) => (<DateRenderer date={rowData.createdAt}/>),
   },
   {
-    title: "Personal Info",
+    headerName: "Personal Info",
     field: "quantity",
-    render: (rowData) => (
+    renderCell: (rowData) => (
       <ListItemText
         primary={rowData?.email}
         secondary={rowData?.phonenumber}
@@ -121,11 +110,11 @@ export const recentTransactionColumns = [
     ),
   },
   {
-    title: "Type",
+    headerName: "Type",
     field: "domain",
   },
   {
-    title: "Amount",
+    headerName: "Amount",
     field: "amount",
     type: "currency",
     currencySetting: {
@@ -138,11 +127,11 @@ export const recentTransactionColumns = [
 
 export const topCustomersColumns = [
   {
-    title: "Telephone Number",
+    headerName: "Telephone Number",
     field: "phonenumber",
   },
   {
-    title: "Amount",
+    headerName: "Amount",
     field: "amount",
     type: "currency",
     currencySetting: {
@@ -155,9 +144,9 @@ export const topCustomersColumns = [
 
 export const topSoldColumns = [
   {
-    title: "Type",
+    headerName: "Type",
     field: null,
-    render: ({ type, count }) => {
+    renderCell: ({ type, count }) => {
       return (
         <Stack spacing={1}>
           <Stack
@@ -178,11 +167,11 @@ export const topSoldColumns = [
   },
 ];
 
-export const transactionsColumns = (type, airtimeType) => [
+export const transactionsColumns = (type) => [
   {
-    title: "Date",
+    headerName: "Date",
     field: "createdAt",
-    render: ({ createdAt }) => moment(createdAt).format("LLL"),
+    renderCell: ({ createdAt }) => moment(createdAt).format("LLL"),
     searchable: true,
     customFilterAndSearch: (data, rowData) => {
       const date = moment(rowData.createdAt).format("LLL");
@@ -190,9 +179,9 @@ export const transactionsColumns = (type, airtimeType) => [
     },
   },
   {
-    title: "Status",
+    headerName: "Status",
     field: "status",
-    render: ({ domain, status, isProcessed }) =>
+    renderCell: ({ domain, status, isProcessed }) =>
       domain === "Airtime" ? (
         <Button
           size="small"
@@ -231,13 +220,13 @@ export const transactionsColumns = (type, airtimeType) => [
       ),
   },
   {
-    title: "Id",
-    field: "_id",
+    headerName: "Id",
+    field: "id",
     // hidden: true,
     width: 100,
   },
   {
-    title: "Payment Reference ID",
+    headerName: "Payment Reference ID",
     field: "reference",
     width: 100,
     cellStyle: {
@@ -245,22 +234,22 @@ export const transactionsColumns = (type, airtimeType) => [
     },
   },
   ["All", "Airtime"].includes(type) && {
-    title: "Kind",
+    headerName: "Kind",
     field: "kind",
   },
   {
-    title: "Domain",
+    headerName: "Domain",
     field: "domain",
   },
   {
-    title: "Link",
+    headerName: "Link",
     field: "downloadLink",
     hidden: true,
   },
   {
-    title: type || "Recipient",
+    headerName: type || "Recipient",
     field: "voucherType",
-    render: (row) =>
+    renderCell: (row) =>
       row?.domain === "Airtime" ? (
         row?.recipient?.length > 20 ? (
           <Stack>
@@ -282,23 +271,23 @@ export const transactionsColumns = (type, airtimeType) => [
   },
 
   {
-    title: "Type",
+    headerName: "Type",
     field: "type",
   },
 
   {
-    title: "Email",
+    headerName: "Email",
     field: "email",
     hidden: true,
   },
   {
-    title: "Telephone Number",
+    headerName: "Telephone Number",
     field: "phonenumber",
     hidden: true,
   },
 
   {
-    title: "Contact Info.",
+    headerName: "Contact Info.",
     field: null,
     searchable: true,
     customFilterAndSearch: (data, { email, phonenumber }) => {
@@ -307,7 +296,7 @@ export const transactionsColumns = (type, airtimeType) => [
         phonenumber.toLowerCase().lastIndexOf(data.toLowerCase()) > -1
       );
     },
-    render: ({ email, phonenumber }) => {
+    renderCell: ({ email, phonenumber }) => {
       return (
         <Stack>
           <Typography variant="body2" color="info.main">
@@ -320,7 +309,7 @@ export const transactionsColumns = (type, airtimeType) => [
   },
 
   {
-    title: "Amount",
+    headerName: "Amount",
     field: "amount",
     type: "currency",
     align: "center",
@@ -337,9 +326,9 @@ export const transactionsColumns = (type, airtimeType) => [
 
 export const airtimeTransactionsColumns = [
   {
-    title: "Date",
+    headerName: "Date",
     field: "createdAt",
-    render: ({ createdAt }) => moment(createdAt).format("LLL"),
+    renderCell: ({ createdAt }) => <DateRenderer date={createdAt} />,
     searchable: true,
     customFilterAndSearch: (data, rowData) => {
       const date = moment(rowData.createdAt).format("LLL");
@@ -347,61 +336,33 @@ export const airtimeTransactionsColumns = [
     },
   },
   {
-    title: "Status",
+    headerName: "Status",
     field: "status",
-    render: ({ status }) => (
-      <Button
-        size="small"
-        label={
-          status === "completed"
-            ? "Completed"
-            : status === "refunded"
-            ? "Refunded"
-            : "Failed"
-        }
-        sx={{
-          color: "white",
-          bgcolor:
-            status === "completed"
-              ? "success.darker"
-              : status === "refunded"
-              ? "#000"
-              : "error.darker",
-          borderRadius: 1,
-          p: 1,
-        }}
-      >
-        {status === "completed"
-          ? "Completed"
-          : status === "refunded"
-          ? "Refunded"
-          : "Failed"}
-      </Button>
-    ),
+    renderCell: ({ status }) => <StatusChip status={status} />,
   },
   {
-    title: "Id",
+    headerName: "Id",
     field: "id",
     // hidden: true,
   },
 
   {
-    title: "Recipient",
+    headerName: "Recipient",
     field: "recipient",
   },
   {
-    title: "Provider",
+    headerName: "Provider",
     field: "provider",
   },
   {
-    title: "Type",
+    headerName: "Type",
     field: "type",
   },
   {
-    title: "Details",
+    headerName: "Details",
     field: "info.plan_name",
     export: true,
-    render: ({ info }) => {
+    renderCell: ({ info }) => {
       return `
       ${info?.type || "N/A"}
       ${info?.plan_name || ""}
@@ -411,7 +372,7 @@ export const airtimeTransactionsColumns = [
     },
   },
   {
-    title: "Total Amount",
+    headerName: "Total Amount",
     field: "amount",
     type: "currency",
     align: "center",
@@ -424,39 +385,39 @@ export const airtimeTransactionsColumns = [
       maximumFractionDigits: 3,
     },
   },
-  {
-    title: "Payment Reference",
-    field: "reference",
-    // hidden: true,
-  },
-  {
-    title: "Commission",
-    field: "commission",
-    type: "currency",
-    align: "center",
-    cellStyle: {
-      textAlign: "center",
-    },
-    currencySetting: {
-      currencyCode: "GHS",
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    },
-  },
-  {
-    title: "Payable Amount",
-    field: "amt",
-    type: "currency",
-    align: "center",
-    cellStyle: {
-      textAlign: "center",
-    },
-    currencySetting: {
-      currencyCode: "GHS",
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    },
-  },
+  // {
+  //   headerName: "Payment Reference",
+  //   field: "reference",
+  //   hidden: true,
+  // },
+  // {
+  //   headerName: "Commission",
+  //   field: "commission",
+  //   type: "currency",
+  //   align: "center",
+  //   cellStyle: {
+  //     textAlign: "center",
+  //   },
+  //   currencySetting: {
+  //     currencyCode: "GHS",
+  //     minimumFractionDigits: 3,
+  //     maximumFractionDigits: 3,
+  //   },
+  // },
+  // {
+  //   headerName: "Payable Amount",
+  //   field: "amt",
+  //   type: "currency",
+  //   align: "center",
+  //   cellStyle: {
+  //     textAlign: "center",
+  //   },
+  //   currencySetting: {
+  //     currencyCode: "GHS",
+  //     minimumFractionDigits: 3,
+  //     maximumFractionDigits: 3,
+  //   },
+  // },
 ];
 
 export const MOBILE_PROVIDER = [
@@ -508,58 +469,32 @@ export const SERVICE_PROVIDER = [
 
 export const WALLET_TOPUP_TRANSACTIONS = [
   {
-    title: "DATE",
+    headerName: "DATE",
     field: "createdAt",
     export: true,
-    render: (rowData) => (
-      <ListItemText
-        primary={moment(new Date(rowData.createdAt)).format("Do MMM,YYYY")}
-        secondary={moment(new Date(rowData.createdAt)).format("h:mm a")}
-        primaryTypographyProps={{
-          fontSize: 12,
-          color: "primary.main",
-        }}
-        secondaryTypographyProps={{
-          fontSize: 12,
-          color: "info.main",
-        }}
-      />
-    ),
+    renderCell: (rowData) => <DateRenderer date={rowData?.createdAt} />,
   },
   {
-    title: "Status",
+    headerName: "Status",
     field: "status",
-    render: ({ status }) => (
-      <Button
-        size="small"
-        label={status === "failed" ? "Failed" : "Completed"}
-        sx={{
-          color: "white",
-          bgcolor: status === "completed" ? "success.darker" : "error.darker",
-          borderRadius: 1,
-          p: 1,
-        }}
-      >
-        {status === "failed" ? "Failed" : "Completed"}
-      </Button>
-    ),
+    renderCell: ({ status }) => <StatusChip status={status} />,
   },
   {
-    title: "TRANSACTION ID",
+    headerName: "TRANSACTION ID",
     field: "id",
     export: true,
   },
   {
-    title: "TYPE",
+    headerName: "TYPE",
     field: null,
-    render: (data) => _.capitalize(data?.type) || "Deposit",
+    renderCell: (data) => _.capitalize(data?.type) || "Deposit",
   },
   {
-    title: "Comment",
+    headerName: "Comment",
     field: "comment",
   },
   {
-    title: "AMOUNT",
+    headerName: "AMOUNT",
     field: "amount",
     type: "currency",
     currencySetting: {
@@ -571,13 +506,13 @@ export const WALLET_TOPUP_TRANSACTIONS = [
 ];
 
 export const LOGS_COLUMNS = [
-  { title: "ID", field: "id", hidden: true },
-  { title: "Logged At", field: "loggedAt" },
-  { title: "Activity", field: "title" },
+  { headerName: "ID", field: "id", hidden: true },
+  { headerName: "Logged At", field: "loggedAt" },
+  { headerName: "Activity", field: "title" },
   {
-    title: "Severity",
+    headerName: "Severity",
     field: "severity",
-    render: ({ severity }) => (
+    renderCell: ({ severity }) => (
       <Button
         size="small"
         sx={{
@@ -592,9 +527,9 @@ export const LOGS_COLUMNS = [
       </Button>
     ),
   },
-  { title: "User", field: "name" },
+  { headerName: "User", field: "name" },
   {
-    title: "Contact",
+    headerName: "Contact",
     field: null,
     searchable: true,
     customFilterAndSearch: (data, { email, phonenumber }) => {
@@ -603,7 +538,7 @@ export const LOGS_COLUMNS = [
         phonenumber.toLowerCase().lastIndexOf(data.toLowerCase()) > -1
       );
     },
-    render: ({ email, phonenumber }) => {
+    renderCell: ({ email, phonenumber }) => {
       return (
         <Stack>
           <Typography variant="body2" color="info.main">
@@ -616,15 +551,46 @@ export const LOGS_COLUMNS = [
   },
 
   {
-    title: "Email Address",
+    headerName: "Email Address",
     field: "email",
     hidden: true,
     export: true,
   },
   {
-    title: "Telephone No.",
+    headerName: "Telephone No.",
     field: "phonenumber",
     hidden: true,
     export: true,
   },
 ];
+
+export const StatusChip = ({ status }) => (
+  <Chip
+    label={status}
+    size="small"
+    color={
+      status === "completed"
+        ? "success"
+        : status === "pending"
+          ? "warning"
+          : status === "failed"
+            ? "error"
+            : "secondary"
+    }
+    sx={{ color: "#fff", textTransform: "capitalize" }}
+  />
+);
+
+export const DateRenderer = ({ date }) => (
+  <ListItemText
+    primary={format(new Date(date), "EEEE, MMMM d, yyyy")}
+    secondary={format(new Date(date), "h:mm a")}
+    primaryTypographyProps={{
+      fontSize: 14,
+    }}
+    secondaryTypographyProps={{
+      fontSize: 14,
+      color: "text.secondary",
+    }}
+  />
+);

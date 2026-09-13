@@ -51,6 +51,9 @@ require("./config/cronMessages.js");
 require("./workers/reservationExpiry.worker");
 require("./workers/ticket.worker");
 require("./workers/voucher.worker");
+require("./workers/airtime.worker");
+require("./workers/bulk-airtime.worker");
+require("./workers/bundle.worker");
 
 // Default server port
 const PORT = process.env.PORT || 5000;

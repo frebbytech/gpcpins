@@ -12,19 +12,14 @@ export const getAdmin = async () => {
   try {
 
    const res = await axios({
+    method:"GET",
      url: `${BASE_URL}/admin/auth`,
       withCredentials: true,
       headers: {
         Authorization: token ? `Bearer ${token}` : "",
       },
     });
-    // const res = await api({
-    //   method: "GET",
-    //   url: `/admin/auth`,
-    //   headers: {
-    //     Authorization: token ? `Bearer ${token}` : "",
-    //   },
-    // });
+  
 
     return res.data;
   } catch (error) {

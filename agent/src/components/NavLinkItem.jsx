@@ -1,6 +1,5 @@
 import { useTheme, Stack, Typography, Tooltip } from "@mui/material";
 import { NavLink } from "react-router-dom";
-import { v4 as uuid } from "uuid";
 
 function NavLinkItem({ to, title, icon }) {
   const {
@@ -22,7 +21,7 @@ function NavLinkItem({ to, title, icon }) {
 
   return (
     <Tooltip title={title} placement="right">
-      <NavLink to={`${to}?_pid=${uuid()}`} style={linkStyle} end>
+      <NavLink to={`${to}`} style={linkStyle} end>
         <Stack
           direction="row"
           columnGap={3}

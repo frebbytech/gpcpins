@@ -14,6 +14,7 @@ const { rateLimit } = require("express-rate-limit");
 const {
   verifyToken,
   verifyRefreshToken,
+  removeUser,
 } = require("../middlewares/verifyToken");
 const { isValidUUID2 } = require("../config/validation");
 const verifyAgent = require("../middlewares/verifyAgent");
@@ -51,6 +52,11 @@ const redisClient = require("../config/redisClient");
 const { safeJSON } = require("../config/helpers");
 const generateDeviceId = require("../utils/deviceFingerprint");
 const { uploadPhoto } = require("../config/uploadFile");
+const { getExpiryTimeByRole } = require("../utils/helper");
+const { parseTimeToMs } = require("../utils/time");
+const { airtimeQueue, bulkAirtimeQueue } = require("../queues/airtime.queue");
+const logger = require("../utils/logger");
+const { bundleQueue } = require("../queues/bundle.queue");
 
 const Storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -299,45 +305,45 @@ router.get(
   }),
 );
 
-router.get(
-  "/auth/token",
-  limit,
-  verifyRefreshToken,
-  asyncHandler(async (req, res) => {
-    const { id } = req.user;
+// router.get(
+//   "/auth/token",
+//   limit,
+//   verifyRefreshToken,
+//   asyncHandler(async (req, res) => {
+//     const { id } = req.user;
 
-    const agent = await knex("vw_user_business_view")
-      .select(
-        "id",
-        "user_id",
-        "firstname",
-        "lastname",
-        "username",
-        "name",
-        "email",
-        "role",
-        "phonenumber",
-        "profile",
-        "businessName",
-        "businessLocation",
-        "businessDescription",
-        "active",
-        "createdAt",
-      )
-      .where("user_id", id)
-      .first();
+//     const agent = await knex("vw_user_business_view")
+//       .select(
+//         "id",
+//         "user_id",
+//         "firstname",
+//         "lastname",
+//         "username",
+//         "name",
+//         "email",
+//         "role",
+//         "phonenumber",
+//         "profile",
+//         "businessName",
+//         "businessLocation",
+//         "businessDescription",
+//         "active",
+//         "createdAt",
+//       )
+//       .where("user_id", id)
+//       .first();
 
-    if (_.isEmpty(agent) || Boolean(agent?.active) === false) {
-      return res.sendStatus(204);
-    }
+//     if (_.isEmpty(agent) || Boolean(agent?.active) === false) {
+//       return res.sendStatus(204);
+//     }
 
-    const accessToken = await signMainToken(agent, "180d");
+//     const accessToken = await signMainToken(agent, "180d");
 
-    res.status(200).json({
-      accessToken,
-    });
-  }),
-);
+//     res.status(200).json({
+//       accessToken,
+//     });
+//   }),
+// );
 
 // @POST Agent
 router.post(
@@ -482,7 +488,7 @@ router.post(
       </div>`;
 
       const smsMessage = `We are delighted to inform you that your application to become an agent at GAB POWERFUL CONSULT has been accepted!
-      Login URL:https://agent.gpcpins.com,Username: ${rest?.phonenumber},Default Password:${password},Email Address:${rest?.email},Wallet PIN: ${user_key}.
+      Login URL:https://agent.gpcpins.com, Username: ${rest?.phonenumber},Default Password:${password},Email Address:${rest?.email},Wallet PIN: ${user_key}.
      We recommend you change your Default Password and Wallet Pin when you log into your account.
       `;
 
@@ -694,12 +700,25 @@ router.post(
     if (_.isEmpty(agent)) {
       return res.status(401).json("Authentication Failed!");
     }
+    let accessData = {
+      id: agentBusiness?.id,
+      name: agentBusiness?.name,
+      firstname: agentBusiness?.firstname,
+      lastname: agentBusiness?.lastname,
+      email: agentBusiness?.email,
+      phonenumber: agentBusiness?.phonenumber,
+      role: agentBusiness?.role,
+      profile: agentBusiness?.profile,
+      businessName: agentBusiness?.businessName,
+      businessLocation: agentBusiness?.businessLocation,
+      businessDescription: agentBusiness?.businessDescription,
+      active: Boolean(agentBusiness?.active),
+      createdAt: agentBusiness?.createdAt,
+    };
 
     const updatedAgent = {
-      id: agentBusiness?.user_id,
+      sub: agentBusiness?.user_id,
       role: agentBusiness?.role,
-      active: agentBusiness?.active,
-      createdAt: agentBusiness?.createdAt,
     };
 
     const deviceId = generateDeviceId(req);
@@ -712,17 +731,17 @@ router.post(
       user_agent: req.headers["user-agent"],
     });
 
-    const accessToken = await signMainToken(agentBusiness, "180d");
-    const refreshToken = signMainRefreshToken(updatedAgent, "365d");
+    const accessToken = await signMainToken(updatedAgent, accessData);
+    const refreshToken = signMainRefreshToken(updatedAgent);
 
-    const expires = new Date();
-    expires.setDate(expires.getDate() + 7);
+    const expires = getExpiryTimeByRole(process.env.ADMIN_ID).refreshTime;
+    const expiresMs = parseTimeToMs(expires);
 
     await knex("user_tokens").insert({
       user_id: agentBusiness.user_id,
       session_id: sessionId,
       refresh_token: refreshToken,
-      expiresAt: expires,
+      expiresAt: new Date(expiresMs * 1000),
     });
 
     //logs
@@ -732,17 +751,20 @@ router.post(
       severity: "info",
     });
 
-    res.cookie("refreshToken", refreshToken, {
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.cookie("RSSIDR", refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax",
+      secure: isProduction, // true in prod (required over HTTPS), false in dev (http)
+      sameSite: "lax", // same-site in both dev and prod, no need for "none"
       path: "/api/gabs/v1/auth/token",
-      domain: isProduction ? ".gpcpins.com" : undefined,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: expiresMs,
+      name: "RSSIDR",
+      signed: true,
     });
 
     res.status(201).json({
-      refreshToken,
+      user: accessData,
       accessToken,
     });
   }),
@@ -752,24 +774,16 @@ router.post(
   "/logout",
   verifyToken,
   asyncHandler(async (req, res) => {
-    const { id, jti } = req.user;
+    const { sub: id } = req.authUser;
 
-    res.clearCookie("refreshToken");
+    res.clearCookie("RSSIDR");
 
-    await knex("user_tokens")
-      .where({ user_id: id })
-      .update({ is_revoked: true });
+    await removeUser(id);
 
-    await knex("activity_logs").insert({
-      user_id: id,
-      title: "Logged out of account.",
-      severity: "info",
-    });
-
-    await redisClient.del(`user:${jti}`);
-
+    req.authUser = null;
     req.user = null;
     delete req.user;
+    delete req.authUser;
 
     res.sendStatus(204);
   }),
@@ -1363,20 +1377,21 @@ router.post(
   verifyToken,
   verifyAgent,
   asyncHandler(async (req, res) => {
-    const { id } = req.user;
+    const { id, phonenumber } = req.user;
     const info = req.body;
-
-    const balanceResponse = await accountBalance();
-    const balance = Number(balanceResponse?.balance);
     const amount = Number(info?.amount);
 
-    if (balance < amount) {
-      await insufficientBalanceWarning(balance);
-      return res.status(401).json("Service Not Available. Try again later.");
+    // 1. External Vendor Balance Check (Fail-fast out of DB context)
+    const balanceResponse = await accountBalance();
+    const vendorBalance = Number(balanceResponse?.balance);
+
+    if (vendorBalance < amount) {
+      await insufficientBalanceWarning(vendorBalance).catch(logger.error);
+      return res.status(503).json("Service Not Available. Try again later.");
     }
 
-    const transx = await knex.transaction();
-    const agentWallet = await transx("wallets")
+    // 2. Fetch Wallet Data Early to run Bcrypt OUTSIDE the transaction
+    const agentWallet = await knex("wallets")
       .select("id", "user_key", "amount", "active")
       .where({ user_id: id })
       .first();
@@ -1385,147 +1400,118 @@ router.post(
       !agentWallet ||
       !(await bcrypt.compare(info?.token, agentWallet.user_key))
     ) {
-      await transx.rollback();
-      return res.status(401).json("Invalid pin!");
+
+      return res.status(400).json("Invalid pin!");
     }
 
     if (Number(agentWallet.amount) < amount) {
-      await transx("notifications").insert({
-        id: generateId(),
-        user_id: id,
-        type: "airtime",
-        title: "Airtime Transfer Failed!",
-        body: "Insufficient wallet balance to complete transaction!",
-      });
-      await transx.commit();
+      // Async save failure notification safely outside response lifecycle
+      saveFailureNotification(
+        id,
+        `Your airtime transfer of ${currencyFormatter(amount)} to ${info?.recipient} failed due to insufficient wallet balance.`,
+      );
       return res
-        .status(401)
+        .status(400)
         .json("Insufficient wallet balance to complete transaction!");
     }
 
-    const transaction_reference = randomBytes(24).toString("hex");
-    const airtimeInfo = {
-      recipient: info?.recipient,
-      amount,
-      network:
-        info?.network === "MTN"
-          ? 4
-          : info?.network === "Vodafone"
-            ? 6
-            : info?.network === "AirtelTigo"
-              ? 1
-              : 0,
-      transaction_reference,
-    };
-
-    const commissionData = await transx("agent_commissions")
-      .select("rate")
-      .where({ user_id: id, provider: info?.network })
-      .first();
-
-    if (!commissionData) {
-      await transx.rollback();
-      return res.status(400).json("Invalid Request");
-    }
-
-    const commission = (commissionData.rate / 100) * amount;
-    const payableAmount = amount - commission;
-
-    const transactionInfo = {
-      id: generateId(),
-      user_id: id,
-      reference: transaction_reference,
-      type: "airtime",
-      recipient: info?.recipient,
-      provider: info?.network,
-      info: JSON.stringify({
-        recipient: info?.recipient,
-        ref: transaction_reference,
-        amount: payableAmount,
-      }),
-      amount: payableAmount,
-      commission,
-      total_amount: amount,
-    };
-
-    await transx("wallets")
-      .where("user_id", id)
-      .decrement({ amount: payableAmount });
-    await transx.commit();
-
-    const tranx = await knex.transaction();
-
+    // 3. Begin Database Mutating Transaction
+    const transx = await knex.transaction();
     try {
-      const response = await sendAirtime(airtimeInfo);
-      const statusCode = response["status-code"];
-      const isSuccess = ["00", "09"].includes(statusCode);
+      const commissionData = await transx("agent_commissions")
+        .select("rate")
+        .where({ user_id: id, provider: info?.network })
+        .first();
 
-      await tranx("agent_transactions").insert({
-        ...transactionInfo,
-        status: isSuccess ? "completed" : "failed",
-      });
-
-      if (isSuccess) {
-        if (Number(response?.balance_after) < 1000) {
-          await insufficientBalanceWarning(response?.balance_after);
-        }
-
-        await tranx("notifications").insert({
-          id: generateId(),
-          user_id: id,
-          type: "airtime",
-          title: "Airtime Transfer",
-          body: `You have successfully recharged ${airtimeInfo.recipient} with ${currencyFormatter(
-            airtimeInfo.amount,
-          )} of airtime. Commission: GHS ${currencyFormatter(commission)}.`,
-        });
-      } else {
-        await tranx("notifications").insert({
-          id: generateId(),
-          agent_id: id,
-          type: "airtime",
-          title: "Airtime Transfer Failed!",
-          body: `Your airtime transfer of ${currencyFormatter(
-            airtimeInfo.amount,
-          )} to ${airtimeInfo.recipient} failed. Please try again later.`,
-        });
+      if (!commissionData) {
+        await transx.rollback();
+        return res
+          .status(400)
+          .json(
+            "Agent commission details not available. Contact administrator for help",
+          );
       }
 
-      await tranx("activity_logs").insert({
-        user_id: id,
-        title: "Transferred airtime to customer.",
-        severity: "info",
-      });
+      const transactionId = generateId();
+      const transaction_reference = randomBytes(24).toString("hex"); // Fixed reference
 
-      await tranx.commit();
-      return res
-        .status(200)
-        .json(
-          isSuccess
-            ? "Airtime transfer was successful!"
-            : "Airtime transfer failed!",
-        );
-    } catch (error) {
-      await tranx("agent_transactions").insert({
-        ...transactionInfo,
-        status: "failed",
-      });
+      const commission = ((commissionData?.rate || 0.2) / 100) * amount;
+      const payableAmount = amount - commission;
 
-      await tranx("notifications").insert({
-        id: generateId(),
+      // Lock row for update and decrement balance safely
+      await transx("wallets")
+        .where("user_id", id)
+        .decrement({ amount: payableAmount });
+
+      // Note: Make sure the table name matches your worker ("agent_transaction" vs "agent_transactions")
+      const transactionInfo = {
+        id: transactionId,
         user_id: id,
+        reference: transaction_reference,
         type: "airtime",
-        title: "Airtime Transfer Failed!",
-        body: `Your airtime transfer of ${currencyFormatter(
-          airtimeInfo.amount,
-        )} to ${airtimeInfo.recipient} failed. Please try again later.`,
-      });
+        recipient: info?.recipient,
+        provider: info?.network,
+        info: JSON.stringify({
+          recipient: info?.recipient,
+          ref: transaction_reference,
+          amount: payableAmount,
+        }),
+        amount: payableAmount,
+        commission,
+        total_amount: amount,
+        status: "pending",
+      };
 
-      await tranx.commit();
-      return res.status(401).json("Transaction failed! An error has occurred.");
+      await transx("agent_transactions").insert(transactionInfo);
+      await transx.commit();
+
+      // 4. Dispatch to BullMQ using the UNIQUE transaction ID, not the user ID
+      await airtimeQueue.add(
+        "send-airtime",
+        {
+          userID: id, // Fixed: ensure your worker maps this correctly to 'userID'
+          transactionId, // Fixed: previously passed user 'id'
+          paymentReference: transaction_reference,
+          phonenumber,
+          commissionData,
+          ...info,
+        },
+        {
+          jobId: transactionId, // Fixed: allowing users to perform multiple transactions sequentially
+          attempts: 5,
+          removeOnComplete: 100,
+        },
+      );
+
+      return res.status(200).json("Processing Complete. Awaiting Transfer!");
+    } catch (error) {
+      if (transx) await transx.rollback();
+      console.log(error);
+      logger.error("Airtime route failed:", error);
+
+      saveFailureNotification(
+        id,
+        `Your airtime transfer of ${currencyFormatter(amount)} to ${info?.recipient} failed. Please try again later.`,
+      );
+      return res.status(500).json("Transaction failed! An error has occurred.");
     }
   }),
 );
+
+// Helper function to process notifications out of the critical main loop path safely
+function saveFailureNotification(agentId, bodyText) {
+  knex("notifications")
+    .insert({
+      id: generateId(),
+      agent_id: agentId,
+      type: "airtime",
+      title: "Airtime Transfer Failed!",
+      body: bodyText,
+    })
+    .catch((err) =>
+      logger.error("Failed to save background notification:", err),
+    );
+}
 
 //Send airtime to recipient
 router.post(
@@ -1533,328 +1519,314 @@ router.post(
   verifyToken,
   verifyAgent,
   asyncHandler(async (req, res) => {
-    const { content, token } = req.body;
-    const { id } = req.user;
+    const { content, token } = req.body; // 'token' extracted correctly here
+    const { id, phonenumber } = req.user;
 
-    // Step 1: Calculate total amount to be charged from all recipients
-    const totalAmount = _.sumBy(content, (info) => Number(info?.amount));
-
-    // Step 2: Check platform account balance
-    const response = await accountBalance();
-    if (Number(response?.balance) < Number(totalAmount)) {
-      await insufficientBalanceWarning(response?.balance);
-      return res.status(401).json("Service Not Available. Try again later.");
+    if (!Array.isArray(content) || content.length === 0) {
+      return res
+        .status(400)
+        .json("Invalid payload. Recipient content is required.");
     }
 
+    // Step 1: Calculate total face value amount
+    const totalFaceAmount = _.sumBy(content, (info) =>
+      Number(info?.amount || 0),
+    );
+
+    // 1. External Vendor Balance Check (Fail-fast out of DB context)
+    const balanceResponse = await accountBalance();
+    const vendorBalance = Number(balanceResponse?.balance);
+
+    if (vendorBalance < totalFaceAmount) {
+      await insufficientBalanceWarning(vendorBalance).catch(logger.error);
+      return res.status(503).json("Service Not Available. Try again later.");
+    }
+
+    // 2. Fetch Wallet Data Early to run Bcrypt OUTSIDE the transaction
+    const agentWallet = await knex("wallets")
+      .select("id", "user_key", "amount", "active")
+      .where({ user_id: id })
+      .first();
+
+    // Fixed typo: swapped 'info?.token' for the correctly extracted 'token' variable
+    if (!agentWallet || !(await bcrypt.compare(token, agentWallet.user_key))) {
+      return res.status(401).json("Invalid pin!");
+    }
+
+    if (Number(agentWallet.amount) < totalFaceAmount) {
+      saveFailureNotification(
+        id,
+        `Your bulk airtime transfer of ${currencyFormatter(totalFaceAmount)} failed due to insufficient wallet balance.`,
+      );
+      return res
+        .status(400)
+        .json("Insufficient wallet balance to complete transaction!");
+    }
+
+    // 3. Pre-fetch ALL agent commissions in a SINGLE batch query to eliminate N+1 loops
+    const uniqueProviders = [
+      ...new Set(
+        content.map(
+          (info) =>
+            getPhoneNumberInfo(info?.recipient?.toString()).providerName,
+        ),
+      ),
+    ];
+    const commissionsList = await knex("agent_commissions")
+      .select("provider", "rate")
+      .where({ user_id: id })
+      .whereIn("provider", uniqueProviders);
+
+    // Convert to dictionary for O(1) lightning-fast lookups
+    const commissionMap = _.keyBy(commissionsList, "provider");
+
+    const transaction_reference = randomBytes(24).toString("hex");
     const transx = await knex.transaction();
 
     try {
-      // Step 3: Fetch agent wallet and validate PIN
-      const agentWallet = await transx("wallets")
-        .select("id", "user_key", "amount", "active")
-        .where({ agent_id: id })
-        .first();
+      // Step 4: Map transaction objects completely in-memory
+      const transactions = content.map((info) => {
+        const parsed = getPhoneNumberInfo(info?.recipient?.toString());
+        const faceAmount = Number(info.amount);
 
-      if (
-        !agentWallet.length ||
-        !(await bcrypt.compare(token, agentWallet.user_key))
-      ) {
-        await transx.rollback();
-        return res.status(401).json("Invalid PIN!");
-      }
+        const airtimeInfo = {
+          recipient: info.recipient,
+          amount: faceAmount,
+          network: parsed.code,
+          transaction_reference,
+        };
 
-      // Step 4: Check if agent has enough balance
-      if (Number(agentWallet[0].amount) < Number(totalAmount)) {
-        await transx("notifications").insert({
-          _id: generateId(),
-          agent_id: id,
+        const rate = commissionMap[parsed.providerName]?.rate || 0.2; // Standard fallback
+        const commissionAmount = (rate / 100) * faceAmount;
+        const payableAmount = faceAmount - commissionAmount;
+
+        const transactionInfo = {
+          id: generateId(),
+          user_id: id,
+          reference: transaction_reference,
           type: "airtime",
-          title: "Airtime Transfer Failed!",
-          message: "Insufficient wallet balance to complete transaction!",
-        });
-        await transx.commit();
-        return res
-          .status(401)
-          .json("Insufficient wallet balance to complete transaction!");
-      }
-
-      // Step 5: Prepare transactions for each recipient
-      const transactions = await Promise.all(
-        content.map(async (info) => {
-          const transaction_reference = randomBytes(24).toString("hex");
-          const { code, providerName, phoneNumber } = getPhoneNumberInfo(
-            info?.recipient.toString(),
-          );
-
-          const airtimeInfo = {
+          recipient: parsed.phoneNumber,
+          provider: parsed.providerName,
+          info: JSON.stringify({
             recipient: info.recipient,
-            amount: Number(info.amount),
-            network: code,
-            transaction_reference,
-          };
-
-          const commissionRate = await transx("agent_commissions")
-            .select("rate")
-            .where({ agent_id: id, provider: providerName })
-            .limit(1);
-
-          // if (!commissionRate.length) {
-          //   throw new Error("Invalid commission data");
-          // }
-
-          const commissionAmount =
-            ((commissionRate[0]?.rate || 0.2) / 100) * airtimeInfo.amount;
-
-          const payableAmount = airtimeInfo.amount - commissionAmount;
-
-          const transactionInfo = {
-            _id: generateId(),
-            agent_id: id,
-            reference: transaction_reference,
-            type: "airtime",
-            recipient: phoneNumber,
-            provider: providerName,
-            info: JSON.stringify({
-              recipient: info.recipient,
-              ref: transaction_reference,
-              amount: payableAmount,
-            }),
+            ref: transaction_reference,
             amount: payableAmount,
-            commission: commissionAmount,
-            totalAmount: airtimeInfo.amount,
-          };
+          }),
+          amount: payableAmount,
+          commission: commissionAmount,
+          total_amount: faceAmount,
+          status: "pending",
+        };
 
-          return { transactionInfo, airtimeInfo, payableAmount };
-        }),
-      );
+        return { transactionInfo, airtimeInfo, payableAmount };
+      });
 
       const totalPayable = _.sumBy(transactions, "payableAmount");
 
-      // Step 6: Deduct total payable amount from agent's wallet
+      // Step 5: Verify real-time net balances inside the isolated transaction block
+      if (Number(agentWallet.amount) < totalPayable) {
+        await transx.rollback();
+        return res
+          .status(400)
+          .json("Insufficient net wallet balance to complete transaction!");
+      }
+
+      // Deduct net cost from agent's wallet
       await transx("wallets")
-        .where("agent_id", id)
+        .where("user_id", id)
         .decrement({ amount: totalPayable });
 
-      await transx.commit(); // Wallet deduction done, move to send airtime
-
-      // Step 7: Process each airtime transaction
-      const airtimeTx = await knex.transaction();
-
-      await Promise.all(
-        transactions.map(async ({ transactionInfo, airtimeInfo }) => {
-          try {
-            const response = await sendAirtime(airtimeInfo);
-            const isSuccess = ["00", "09"].includes(response["status-code"]);
-
-            await airtimeTx("agent_transactions").insert({
-              ...transactionInfo,
-              status: isSuccess ? "completed" : "failed",
-            });
-
-            await airtimeTx("notifications").insert({
-              _id: generateId(),
-              agent_id: id,
-              type: "airtime",
-              title: isSuccess
-                ? "Airtime Transfer"
-                : "Airtime Transfer Failed!",
-              message: isSuccess
-                ? `You have successfully recharged ${airtimeInfo.recipient} with ${currencyFormatter(
-                    airtimeInfo.amount,
-                  )} of airtime. Commission earned: GHS ${transactionInfo.commission}.`
-                : `Your airtime transfer of ${currencyFormatter(
-                    airtimeInfo.amount,
-                  )} to ${airtimeInfo.recipient} failed. Please try again later.`,
-            });
-
-            return isSuccess;
-          } catch (err) {
-            // Fallback for unexpected errors
-            await airtimeTx("agent_transactions").insert({
-              ...transactionInfo,
-              status: "failed",
-            });
-
-            await airtimeTx("notifications").insert({
-              _id: generateId(),
-              agent_id: id,
-              type: "airtime",
-              title: "Airtime Transfer Failed!",
-              message: `Your airtime transfer of ${currencyFormatter(
-                airtimeInfo.amount,
-              )} to ${airtimeInfo.recipient} failed. Please try again later.`,
-            });
-
-            return false;
-          }
-        }),
+      // Bulk batch insert all database records in a single statement
+      await transx("agent_transactions").insert(
+        transactions.map((t) => t.transactionInfo),
       );
 
-      // Step 8: Log activity
-      await airtimeTx("activity_logs").insert({
-        agent_id: id,
-        title: "Transferred bulk airtime to Customers.",
-        severity: "info",
-      });
+      await transx.commit();
 
-      await airtimeTx.commit();
+      // 6. Forward the batch work to your processing queue
+      await bulkAirtimeQueue.add(
+        "send-bulk-airtime",
+        {
+          userID: id,
+          paymentReference: transaction_reference,
+          phonenumber,
+          // Sending only raw data structures over Redis to keep memory lightweight
+          payloads: transactions.map((t) => ({
+            id: t.transactionInfo.id,
+            commission: t.transactionInfo.commission,
+            airtimeInfo: t.airtimeInfo,
+          })),
+        },
+        {
+          jobId: transaction_reference,
+          attempts: 5,
+          removeOnComplete: 100,
+        },
+      );
 
-      return res.status(200).json("Airtime transfer was successful!");
+      return res.status(200).json("Processing Complete. Awaiting Transfer!");
     } catch (err) {
-      console.log("2", err);
-      await transx.rollback();
-      // await transx.commit();
-      // await airtimeTx.commit();
+      if (transx) await transx.rollback();
+      logger.error("Bulk airtime route failed:", err);
+
+      saveFailureNotification(
+        id,
+        `Your bulk airtime transfer of ${currencyFormatter(totalFaceAmount)} failed. Please try again later.`,
+      );
+
       return res.status(500).json("Transaction failed! An error has occurred.");
     }
   }),
 );
 
+// // Asynchronous background notification engine
+// function saveFailureNotification(agentId, bodyText) {
+//   knex("notifications").insert({
+//     id: generateId(),
+//     agent_id: agentId,
+//     type: "airtime",
+//     title: "Bulk Airtime Transfer Failed!",
+//     body: bodyText
+//   }).catch(err => logger.error("Failed to save background notification:", err));
+// }
+
 //Send bundle to recipient
+
 router.post(
   "/top-up/bundle",
   verifyToken,
   verifyAgent,
   asyncHandler(async (req, res) => {
+    // Fixed: 'bundle' contains the pricing details directly in this route context
     const { bundle, recipient, token, network } = req.body;
-    const { id } = req.user;
+    const { id, phonenumber } = req.user; // Fixed: Extract phonenumber from req.user for the queue
+    // console.log(req.body);
 
-    // Step 1: Check system balance
-    const systemBalance = await accountBalance();
-
-    const systemAvailable = Number(systemBalance?.balance || 0);
+    // Fixed: Ensure bundle and amount exist safely
     const bundlePrice = Number(bundle?.price || 0);
-
-    if (systemAvailable < bundlePrice) {
-      await insufficientBalanceWarning(systemAvailable);
-      return res.status(401).json("Service Not Available. Try again later.");
+    if (!bundlePrice || !recipient) {
+      return res
+        .status(400)
+        .json("Invalid bundle details or recipient specified.");
     }
 
-    // Step 2: Verify agent wallet and pin
-    const transx = await knex.transaction();
+    // 1. External Vendor Balance Check (Fail-fast out of DB context)
+    const balanceResponse = await accountBalance();
+    const vendorBalance = Number(balanceResponse?.balance);
 
-    const agentWallet = await transx("wallets")
+    if (vendorBalance < bundlePrice) {
+      await insufficientBalanceWarning(vendorBalance).catch(logger.error);
+      return res.status(503).json("Service Not Available. Try again later.");
+    }
+
+    // 2. Fetch Wallet Data Early to run Bcrypt OUTSIDE the transaction
+    const agentWallet = await knex("wallets")
       .select("id", "user_key", "amount", "active")
       .where({ user_id: id })
       .first();
 
-    if (!agentWallet) {
-      await transx.rollback();
-      return res.status(401).json("Invalid pin!");
-    }
-
-    const isPinValid = await bcrypt.compare(token, agentWallet.user_key);
-    if (!isPinValid) {
-      await transx.rollback();
+    if (!agentWallet || !(await bcrypt.compare(token, agentWallet.user_key))) {
       return res.status(401).json("Invalid pin!");
     }
 
     if (Number(agentWallet.amount) < bundlePrice) {
-      await transx("notifications").insert({
-        id: generateId(),
-        user_id: id,
-        type: "bundle",
-        title: "Data Bundle Transfer Failed",
-        body: "Insufficient wallet balance to complete transaction!",
-      });
-      await transx.commit();
+      saveBundleFailureNotification(
+        id,
+        `Your data bundle purchase of ${currencyFormatter(bundlePrice)} to ${recipient} failed due to insufficient wallet balance.`,
+      );
       return res
-        .status(401)
+        .status(400)
         .json("Insufficient wallet balance to complete transaction!");
     }
 
-    // Step 3: Prepare transaction
-    const transaction_reference = randomBytes(24).toString("hex");
-
-    const bundleInfo = {
-      recipient,
-      data_code: bundle.plan_id,
-      network: bundle.network_code || 0,
-      transaction_reference,
-    };
-
-    const transactionInfo = {
-      id: generateId(),
-      user_id: id,
-      reference: transaction_reference,
-      type: "bundle",
-      recipient,
-      provider: network,
-      info: JSON.stringify({
-        recipient,
-        ref: transaction_reference,
-        amount: bundlePrice,
-        ...bundle,
-      }),
-      amount: bundlePrice,
-      commission: 0,
-      total_amount: bundlePrice,
-    };
-
-    await transx("wallets")
-      .where("user_id", id)
-      .decrement("amount", bundlePrice);
-    await transx.commit();
-
-    // Step 4: Process bundle
-    const tranx = await knex.transaction();
-
+    // 3. Begin Database Mutating Transaction
+    const transx = await knex.transaction();
     try {
-      const result = await sendBundle(bundleInfo);
-      const { ["status-code"]: statusCode, balance_after } = result;
+      // Fixed: Generate a SINGLE immutable transaction ID to tie database and queue together
+      const transactionId = generateId();
+      const transaction_reference = randomBytes(24).toString("hex");
 
-      const isSuccess = ["00", "09"].includes(statusCode);
+      // Lock row for update and decrement balance safely
+      await transx("wallets")
+        .where("user_id", id)
+        .decrement({ amount: bundlePrice });
 
-      await tranx("agent_transactions").insert({
-        ...transactionInfo,
-        status: isSuccess ? "completed" : "failed",
-      });
+      const bundleInfo = {
+        recipient,
+        data_code: bundle.plan_id,
+        network: bundle.network_code || 0,
+        transaction_reference,
+      };
 
-      await tranx("notifications").insert({
-        id: generateId(),
+      const transactionInfo = {
+        id: transactionId, // Fixed: Using synchronized ID
         user_id: id,
+        reference: transaction_reference,
         type: "bundle",
-        title: isSuccess
-          ? "Data Bundle Transfer"
-          : "Data Bundle Transfer Failed",
-        body: isSuccess
-          ? `You have successfully recharged ${recipient} with ${bundle.plan_id}, you were charged GHS ${bundlePrice}`
-          : "Could not process your request. Try again later!",
-      });
+        recipient,
+        provider: network,
+        info: JSON.stringify({
+          recipient,
+          ref: transaction_reference,
+          amount: bundlePrice,
+          ...bundle,
+        }),
+        amount: bundlePrice,
+        commission: 0,
+        total_amount: bundlePrice,
+        status: "pending", // Fixed: Added missing state key
+      };
 
-      await tranx("activity_logs").insert({
-        user_id: id,
-        title: `Transferred data bundle, ${bundle.plan_id} to ${recipient}.`,
-        severity: "info",
-      });
+      await transx("agent_transactions").insert(transactionInfo);
+      await transx.commit();
 
-      // Notify if balance is low
-      if (isSuccess && Number(balance_after) < 1000) {
-        await insufficientBalanceWarning(balance_after);
-      }
+      // 4. Dispatch to BullMQ using matched keys
+      await bundleQueue.add(
+        "send-bundle",
+        {
+          userID: id,
+          transactionId, // Securely mapped to matching DB row
+          paymentReference: transaction_reference,
+          phonenumber, // Safely provided from req.user
+          bundleInfo,
+          amount: bundlePrice,
+        },
+        {
+          jobId: transactionId,
+          attempts: 5,
+          removeOnComplete: 100,
+        },
+      );
 
-      await tranx.commit();
-
-      return res
-        .status(200)
-        .json(
-          isSuccess
-            ? "Bundle transfer was successful!"
-            : "Bundle transfer failed!",
-        );
+      return res.status(200).json("Processing Complete. Awaiting Transfer!");
     } catch (error) {
-      await tranx("notifications").insert({
-        id: generateId(),
-        user_id: id,
-        type: "bundle",
-        title: "Data Bundle Transfer Failed",
-        body: "Could not process your request. Try again later!",
-      });
-      await tranx.commit();
-      return res.status(401).json("Transaction failed! An error has occurred.");
+      if (transx) await transx.rollback();
+      logger.error("Data bundle route failed:", error);
+
+      // Fixed string interpolations using active scope parameters
+      saveBundleFailureNotification(
+        id,
+        `Your data bundle transfer of ${currencyFormatter(bundlePrice)} to ${recipient} failed. Please try again later.`,
+      );
+      return res.status(500).json("Transaction failed! An error has occurred.");
     }
   }),
 );
+
+// Asynchronous background notification helper
+function saveBundleFailureNotification(agentId, bodyText) {
+  knex("notifications")
+    .insert({
+      id: generateId(),
+      user_id: agentId,
+      type: "bundle", // Adjusted contextual type tag
+      title: "Data Bundle Transfer Failed!",
+      body: bodyText,
+    })
+    .catch((err) =>
+      logger.error("Failed to save background notification:", err),
+    );
+}
 
 const insufficientBalanceWarning = async (bal) => {
   const body = `

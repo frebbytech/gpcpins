@@ -24,6 +24,8 @@ import VerifyAgentPassword from "../VerifyAgentPassword";
 import Business from "../profile/Business";
 import Wallet from "../wallet";
 import { globalAlertType } from "../../components/alert/alertType";
+import PaymentStatus from "../PaymentStatus";
+import PaymentSuccess from "../payment/PaymentSuccess";
 
 //Airtime
 const Airtime = lazy(() => import("../airtime"));
@@ -49,7 +51,7 @@ function Shell() {
 
     const handleOffline = () => {
       customDispatch(
-        globalAlertType("error", "Internet Connection Lost! Try reconnecting.")
+        globalAlertType("error", "Internet Connection Lost! Try reconnecting."),
       );
     };
 
@@ -205,6 +207,24 @@ function Shell() {
             element={
               <Suspense fallback={<PayLoading />}>
                 <Logs />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="confirm"
+            element={
+              <Suspense fallback={<PayLoading />}>
+                <PaymentStatus />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="payment/success"
+            element={
+              <Suspense fallback={<PayLoading />}>
+                <PaymentSuccess />
               </Suspense>
             }
           />

@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import {
   Box,
   Container,
@@ -18,13 +18,14 @@ import {
   Divider,
 } from "@mui/material";
 import { LoadingButton } from "@mui/lab";
-import { Visibility, VisibilityOff, LockOutlined, EmailOutlined } from "@mui/icons-material";
-import { Formik, Form } from "formik";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { useForm, Controller } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as Yup from "yup";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { loginAgent } from "../api/agentAPI";
-import { AuthContext } from "../context/providers/AuthProvider";
+import { useAuth } from "../context/providers/AuthProvider";
 import { IMAGES } from "../constants";
 import DOMPurify from "dompurify";
 
@@ -41,35 +42,45 @@ const loginValidationSchema = Yup.object({
 const Login = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const { login } = useContext(AuthContext);
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
-  const mutation = useMutation({
-    mutationFn: loginAgent,
-    onSuccess: (data) => {
-      login(data?.accessToken, rememberMe);
-      navigate("/");
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: yupResolver(loginValidationSchema),
+    defaultValues: {
+      email: "frebbytechconsults@gmail.com",
+      password: "Akwasi21@gpcpins",
     },
   });
 
-  const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
+  const mutation = useMutation({
+    mutationFn: loginAgent,
+    onSuccess: (data) => {
+    
+      login(data);
+      navigate("/");
+    },
+    onError: (err) => {
+      console.log(err);
+      if (err) {
+        setError("root", { message: err });
+      } else {
+        setError("root", { message: "Login failed. Please try again." });
+      }
+    },
+  });
+
+  const onSubmit = async (values) => {
     const sanitizedEmail = DOMPurify.sanitize(values.email.toLowerCase());
     const sanitizedPassword = DOMPurify.sanitize(values.password);
-    mutation.mutate(
-      { email: sanitizedEmail, password: sanitizedPassword },
-      {
-        onError: (err) => {
-          if (err?.response?.data?.message) {
-            setFieldError("general", err.response.data.message);
-          } else {
-            setFieldError("general", "Login failed. Please try again.");
-          }
-          setSubmitting(false);
-        },
-      }
-    );
+    mutation.mutate({ email: sanitizedEmail, password: sanitizedPassword });
   };
 
   return (
@@ -97,19 +108,11 @@ const Login = () => {
           <img
             src={IMAGES.logo}
             alt="Logo"
-            style={{ width: 120, marginBottom: 32 ,}}
+            style={{ width: 120, marginBottom: 32 }}
           />
           <Typography variant="h3" fontWeight={700} gutterBottom>
             Agent Portal
           </Typography>
-          <Typography variant="h6" align="center" sx={{ opacity: 0.9, maxWidth: 400 }}>
-            Securely access your dashboard, manage transactions, and track performance.
-          </Typography>
-          <Box sx={{ mt: 6, textAlign: "center" }}>
-            <Typography variant="body2" sx={{ opacity: 0.7 }}>
-              &copy; {new Date().getFullYear()} Gab Powerful Consult
-            </Typography>
-          </Box>
         </Box>
       )}
 
@@ -125,7 +128,7 @@ const Login = () => {
       >
         <Container maxWidth="sm">
           <Paper
-            elevation={isMobile ? 0 : 3}
+            elevation={isMobile ? 0 : 1}
             sx={{
               p: { xs: 3, sm: 5 },
               borderRadius: 4,
@@ -152,120 +155,103 @@ const Login = () => {
               Please enter your credentials to sign in
             </Typography>
 
-            {mutation.isError && (
+            {errors.root && (
               <Alert severity="error" sx={{ mb: 3 }}>
-                {mutation.error?.response?.data?.message || "Invalid email or password"}
+                {errors.root.message}
               </Alert>
             )}
 
-            <Formik
-              initialValues={{ email: "", password: "" }}
-              validationSchema={loginValidationSchema}
-              onSubmit={handleSubmit}
-            >
-              {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
-                <Form>
-                  <Stack spacing={2.5}>
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <Stack spacing={2.5}>
+                <Controller
+                  name="email"
+                  control={control}
+                  render={({ field }) => (
                     <TextField
+                      {...field}
                       fullWidth
-                      name="email"
                       label="Email Address"
-                      value={values.email}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      error={touched.email && Boolean(errors.email)}
-                      helperText={touched.email && errors.email}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EmailOutlined color="action" />
-                          </InputAdornment>
-                        ),
-                      }}
+                      error={!!errors.email}
+                      helperText={errors.email?.message}
                     />
+                  )}
+                />
 
+                <Controller
+                  name="password"
+                  control={control}
+                  render={({ field }) => (
                     <TextField
+                      {...field}
                       fullWidth
-                      name="password"
                       label="Password"
                       type={showPassword ? "text" : "password"}
-                      value={values.password}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      error={touched.password && Boolean(errors.password)}
-                      helperText={touched.password && errors.password}
+                      error={!!errors.password}
+                      helperText={errors.password?.message}
                       InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlined color="action" />
-                          </InputAdornment>
-                        ),
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
                               onClick={() => setShowPassword(!showPassword)}
                               edge="end"
                             >
-                              {showPassword ? <VisibilityOff /> : <Visibility />}
+                              {showPassword ? (
+                                <VisibilityOff />
+                              ) : (
+                                <Visibility />
+                              )}
                             </IconButton>
                           </InputAdornment>
                         ),
                       }}
                     />
+                  )}
+                />
 
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      alignItems="center"
-                    >
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={rememberMe}
-                            onChange={(e) => setRememberMe(e.target.checked)}
-                            color="primary"
-                          />
-                        }
-                        label="Remember me"
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                >
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        color="primary"
                       />
-                      <Link
-                        href="/forgot-password"
-                        underline="hover"
-                        variant="body2"
-                      >
-                        Forgot password?
-                      </Link>
-                    </Stack>
+                    }
+                    label="Remember me"
+                  />
+                  <Link
+                    href="/forgot-password"
+                    underline="hover"
+                    variant="body2"
+                  >
+                    Forgot password?
+                  </Link>
+                </Stack>
 
-                    <LoadingButton
-                      type="submit"
-                      fullWidth
-                      variant="contained"
-                      size="large"
-                      loading={mutation.isPending || isSubmitting}
-                      disabled={mutation.isPending || isSubmitting}
-                      sx={{ py: 1.2, borderRadius: 2 }}
-                    >
-                      Sign In
-                    </LoadingButton>
+                <LoadingButton
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  loading={mutation.isLoading || isSubmitting}
+                  disabled={mutation.isLoading || isSubmitting}
+                >
+                  Sign In
+                </LoadingButton>
 
-                    <Divider sx={{ my: 1 }}>OR</Divider>
+                <Divider sx={{ my: 1 }}>OR</Divider>
 
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      onClick={() => navigate("/")}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      Back to Home
-                    </Button>
-                  </Stack>
-                </Form>
-              )}
-            </Formik>
+                <Button fullWidth variant="text" onClick={() => navigate("/")}>
+                  Back to Home
+                </Button>
+              </Stack>
+            </form>
           </Paper>
 
-          {/* Footer for mobile */}
           {isMobile && (
             <Typography
               variant="body2"
@@ -284,7 +270,274 @@ const Login = () => {
 
 export default Login;
 
+// import { useState, useContext } from "react";
+// import {
+//   Box,
+//   Container,
+//   Typography,
+//   TextField,
+//   Button,
+//   Checkbox,
+//   FormControlLabel,
+//   Link,
+//   Alert,
+//   IconButton,
+//   InputAdornment,
+//   Paper,
+//   Stack,
+//   useTheme,
+//   useMediaQuery,
+//   Divider,
+// } from "@mui/material";
+// import { LoadingButton } from "@mui/lab";
+// import { Visibility, VisibilityOff, LockOutlined, EmailOutlined } from "@mui/icons-material";
+// import { Formik, Form } from "formik";
+// import * as Yup from "yup";
+// import { useNavigate } from "react-router-dom";
+// import { useMutation } from "@tanstack/react-query";
+// import { loginAgent } from "../api/agentAPI";
+// import { AuthContext, useAuth } from "../context/providers/AuthProvider";
+// import { IMAGES } from "../constants";
+// import DOMPurify from "dompurify";
 
+// // Validation schema
+// const loginValidationSchema = Yup.object({
+//   email: Yup.string()
+//     .email("Invalid email address")
+//     .required("Email is required"),
+//   password: Yup.string()
+//     .min(6, "Password must be at least 6 characters")
+//     .required("Password is required"),
+// });
+
+// const Login = () => {
+//   const theme = useTheme();
+//   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+//   const { login } = useAuth()
+//   const navigate = useNavigate();
+//   const [showPassword, setShowPassword] = useState(false);
+//   const [rememberMe, setRememberMe] = useState(false);
+
+//   const mutation = useMutation({
+//     mutationFn: loginAgent,
+//     onSuccess: (data) => {
+//       login(data?.accessToken, rememberMe);
+//       navigate("/");
+//     },
+//   });
+
+//   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
+//     const sanitizedEmail = DOMPurify.sanitize(values.email.toLowerCase());
+//     const sanitizedPassword = DOMPurify.sanitize(values.password);
+//     mutation.mutate(
+//       { email: sanitizedEmail, password: sanitizedPassword },
+//       {
+//         onError: (err) => {
+//           if (err?.response?.data?.message) {
+//             setFieldError("general", err.response.data.message);
+//           } else {
+//             setFieldError("general", "Login failed. Please try again.");
+//           }
+//           setSubmitting(false);
+//         },
+//       }
+//     );
+//   };
+
+//   return (
+//     <Box
+//       sx={{
+//         minHeight: "100vh",
+//         display: "flex",
+//         backgroundColor: theme.palette.background.default,
+//       }}
+//     >
+//       {/* Left Panel - Branding */}
+//       {!isMobile && (
+//         <Box
+//           sx={{
+//             flex: 1,
+//             background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+//             display: "flex",
+//             flexDirection: "column",
+//             justifyContent: "center",
+//             alignItems: "center",
+//             p: 4,
+//             color: "white",
+//           }}
+//         >
+//           <img
+//             src={IMAGES.logo}
+//             alt="Logo"
+//             style={{ width: 120, marginBottom: 32 ,}}
+//           />
+//           <Typography variant="h3" fontWeight={700} gutterBottom>
+//             Agent Portal
+//           </Typography>
+
+//         </Box>
+//       )}
+
+//       {/* Right Panel - Login Form */}
+//       <Box
+//         sx={{
+//           flex: 1,
+//           display: "flex",
+//           alignItems: "center",
+//           justifyContent: "center",
+//           p: { xs: 2, sm: 4 },
+//         }}
+//       >
+//         <Container maxWidth="sm">
+//           <Paper
+//             elevation={isMobile ? 0 : 3}
+//             sx={{
+//               p: { xs: 3, sm: 5 },
+//               borderRadius: 4,
+//               backgroundColor: "background.paper",
+//             }}
+//           >
+//             {isMobile && (
+//               <Box textAlign="center" mb={3}>
+//                 <img
+//                   src={IMAGES.logo}
+//                   alt="Logo"
+//                   style={{ width: 80, marginBottom: 16 }}
+//                 />
+//                 <Typography variant="h4" fontWeight={700}>
+//                   Agent Portal
+//                 </Typography>
+//               </Box>
+//             )}
+
+//             <Typography variant="h5" fontWeight={600} gutterBottom>
+//               Welcome back
+//             </Typography>
+//             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+//               Please enter your credentials to sign in
+//             </Typography>
+
+//             {mutation.isError && (
+//               <Alert severity="error" sx={{ mb: 3 }}>
+//                 {mutation.error?.response?.data?.message || "Invalid email or password"}
+//               </Alert>
+//             )}
+
+//             <Formik
+//               initialValues={{ email: "", password: "" }}
+//               validationSchema={loginValidationSchema}
+//               onSubmit={handleSubmit}
+//             >
+//               {({ values, errors, touched, handleChange, handleBlur, isSubmitting }) => (
+//                 <Form>
+//                   <Stack spacing={2.5}>
+//                     <TextField
+//                       fullWidth
+//                       name="email"
+//                       label="Email Address"
+//                       value={values.email}
+//                       onChange={handleChange}
+//                       onBlur={handleBlur}
+//                       error={touched.email && Boolean(errors.email)}
+//                       helperText={touched.email && errors.email}
+
+//                     />
+
+//                     <TextField
+//                       fullWidth
+//                       name="password"
+//                       label="Password"
+//                       type={showPassword ? "text" : "password"}
+//                       value={values.password}
+//                       onChange={handleChange}
+//                       onBlur={handleBlur}
+//                       error={touched.password && Boolean(errors.password)}
+//                       helperText={touched.password && errors.password}
+//                       InputProps={{
+
+//                         endAdornment: (
+//                           <InputAdornment position="end">
+//                             <IconButton
+//                               onClick={() => setShowPassword(!showPassword)}
+//                               edge="end"
+//                             >
+//                               {showPassword ? <VisibilityOff /> : <Visibility />}
+//                             </IconButton>
+//                           </InputAdornment>
+//                         ),
+//                       }}
+//                     />
+
+//                     <Stack
+//                       direction="row"
+//                       justifyContent="space-between"
+//                       alignItems="center"
+//                     >
+//                       <FormControlLabel
+//                         control={
+//                           <Checkbox
+//                             checked={rememberMe}
+//                             onChange={(e) => setRememberMe(e.target.checked)}
+//                             color="primary"
+//                           />
+//                         }
+//                         label="Remember me"
+//                       />
+//                       <Link
+//                         href="/forgot-password"
+//                         underline="hover"
+//                         variant="body2"
+//                       >
+//                         Forgot password?
+//                       </Link>
+//                     </Stack>
+
+//                     <LoadingButton
+//                       type="submit"
+//                       fullWidth
+//                       variant="contained"
+//                       size="large"
+//                       loading={mutation.isPending || isSubmitting}
+//                       disabled={mutation.isPending || isSubmitting}
+//                       // sx={{ py: 1.2, borderRadius: 2 }}
+//                     >
+//                       Sign In
+//                     </LoadingButton>
+
+//                     <Divider sx={{ my: 1 }}>OR</Divider>
+
+//                     <Button
+//                       fullWidth
+//                       variant="text"
+//                       onClick={() => navigate("/")}
+
+//                     >
+//                       Back to Home
+//                     </Button>
+//                   </Stack>
+//                 </Form>
+//               )}
+//             </Formik>
+//           </Paper>
+
+//           {/* Footer for mobile */}
+//           {isMobile && (
+//             <Typography
+//               variant="body2"
+//               align="center"
+//               color="text.secondary"
+//               sx={{ mt: 3 }}
+//             >
+//               &copy; {new Date().getFullYear()} Gab Powerful Consult
+//             </Typography>
+//           )}
+//         </Container>
+//       </Box>
+//     </Box>
+//   );
+// };
+
+// export default Login;
 
 // import { LoadingButton } from "@mui/lab";
 // import {
@@ -492,7 +745,7 @@ export default Login;
 //           >
 //             Terms & Conditions
 //           </a>
-        
+
 //         </Stack>
 //         <Divider flexItem />
 //         <Box

@@ -18,14 +18,14 @@ function CustomTitle({ title, titleVariant, subtitle }) {
           {icon}
         </Box> */}
         <Stack>
-          <Typography variant={titleVariant || "h3"}>{title}</Typography>
-          <Typography variant="body2" color="primary.main">
+          <Typography variant={titleVariant || "h4"}>{title}</Typography>
+          <Typography variant="body2" color="text.secondary">
             {subtitle}
           </Typography>
         </Stack>
       </Stack>
 
-      <Divider />
+      <Divider sx={{mb:4}}/>
     </>
   );
 }

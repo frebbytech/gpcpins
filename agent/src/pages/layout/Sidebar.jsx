@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Divider,
@@ -14,7 +14,7 @@ import Swal from "sweetalert2";
 import PropTypes from "prop-types";
 import NavLinkItem from "../../components/NavLinkItem";
 import NavLinkItemCollapse from "../../components/modals/NavLinkItemCollapse";
-import { CustomContext } from "../../context/providers/CustomProvider";
+import { useCustomContext } from "../../context/providers/CustomProvider";
 import { Link, useLocation } from "react-router-dom";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import {
@@ -29,33 +29,30 @@ import {
   WalletRounded,
   NotificationsRounded,
 } from "@mui/icons-material";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AuthContext } from "../../context/providers/AuthProvider";
+import { useAuth } from "../../context/providers/AuthProvider";
 import { useMemo } from "react";
-import { getAllNotifications } from "../../api/notificationAPI";
 
 function Sidebar() {
-  const { user, logout } = useContext(AuthContext);
-  const queryClient = useQueryClient();
+  const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const [toggleWidth, setToggleWidth] = useState(false);
 
-  const { customDispatch } = useContext(CustomContext);
+  const { customDispatch, notifications } = useCustomContext();
   const { palette } = useTheme();
   const location = useLocation();
 
-  const notifications = useQuery({
-    queryKey: ["notifications"],
-    queryFn: () => getAllNotifications(),
-    enabled: !!user?.id,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-    initialData: queryClient?.getQueryData(["notifications"]),
-        retry: 1,
-        staleTime: 5 * 60 * 1000, // 5 minutes
+  // const notifications = useQuery({
+  //   queryKey: ["notifications"],
+  //   queryFn: () => getAllNotifications(),
+  //   enabled: !!user?.id,
+  //   refetchOnMount: false,
+  //   refetchOnReconnect: false,
+  //   refetchOnWindowFocus: false,
+  //   initialData: queryClient?.getQueryData(["notifications"]),
+  //       retry: 1,
+  //       staleTime: 5 * 60 * 1000, // 5 minutes
 
-  });
+  // });
 
   useEffect(() => {
     if (location.pathname) {
@@ -88,8 +85,8 @@ function Sidebar() {
   };
 
   const unReadNotifications = useMemo(
-    () => notifications?.data?.filter((item) => item?.active === 1),
-    [notifications.data]
+    () => notifications?.data?.filter((item) => item?.isRead === false),
+    [notifications.data],
   );
 
   return (
@@ -157,7 +154,7 @@ function Sidebar() {
                   />
                   <NavLinkItem
                     to="bundle/transactions"
-                    title="Sell Data"
+                    title="Sell Data Bundle"
                     icon={<DataObjectRounded />}
                   />
                 </NavLinkItemCollapse>
@@ -166,11 +163,6 @@ function Sidebar() {
                   to="summary"
                   title="Summary & Report"
                   icon={<BarChartRounded />}
-                />
-                <NavLinkItem
-                  to="logs"
-                  title="Activity Logs"
-                  icon={<AccessTimeIcon />}
                 />
               </List>
               <Divider flexItem />
@@ -192,6 +184,11 @@ function Sidebar() {
                   to="wallet"
                   title="Wallet"
                   icon={<WalletRounded />}
+                />
+                <NavLinkItem
+                  to="logs"
+                  title="Activity Logs"
+                  icon={<AccessTimeIcon />}
                 />
                 <Tooltip title="Log out" placement="right">
                   <Stack

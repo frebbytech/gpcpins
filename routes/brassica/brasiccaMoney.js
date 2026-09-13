@@ -77,10 +77,10 @@ async function getBrassicaTransactionStatus(transactionId, transactionType) {
 
     const data = await brassicaPost("/transStatusQuery", {
       transactionType,
-     transactionId: "5365tet055520509"
-      // transactionId,
+    //  transactionId: "5365tet055520509"
+      transactionId,
     });
-    console.log(data);
+    // console.log(data);
 
     return data;
   } catch (err) {

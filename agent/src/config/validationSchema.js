@@ -1,5 +1,43 @@
 
+import { getInternationalMobileFormat, isValidPartner } from '@/constants/PhoneCode';
 import { date, number, object, ref, string, ValidationError } from 'yup';
+
+
+const phoneNumberREgex = /^(\+\d{1,3})?\(?\d{3}\)?\d{3}\d{4}$/;
+
+export const topUpSchema = object().shape({
+  mobilePartner: string().required("Required*"),
+  phoneNumber: string()
+    .trim()
+    .required("Required*")
+    .matches(phoneNumberREgex, "Invalid Phone number !")
+    .label("mobilePartner")
+    .test("isValidNetwork", "", (value, { parent }) => {
+      const partner = parent?.mobilePartner || "Mobile";
+      if (!isValidPartner(partner, getInternationalMobileFormat(value))) {
+        throw new ValidationError(
+          `Invalid ${
+            partner === "mtn-gh"
+              ? "MTN"
+              : partner === "vodafone-gh"
+                ? "Telecel"
+                : partner === "tigo-gh"
+                  ? "AirtelTigo"
+                  : partner
+          } number !`,
+          value, // Value to associate the error with
+          "phoneNumber", // Field to associate the error with
+        );
+      }
+
+      return true;
+    }),
+  amount: number()
+    .typeError("Amount must be a number")
+    .required("Amount is required")
+    .min(1, "Minimum top-up amount is GHS 1")
+    .max(10000, "Maximum top-up amount is GHS 10,000"),
+});
 
 export const salesValidationSchema = () => {
   return object().shape({

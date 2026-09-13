@@ -130,7 +130,7 @@ function Register() {
 
   return (
     <Container
-      maxWidth="sm"
+      maxWidth="xs"
       sx={{
         minHeight: "100vh",
         display: "flex",

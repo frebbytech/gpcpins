@@ -1,4 +1,5 @@
-import { useState, useContext, useEffect } from "react";
+
+import { useState, useEffect } from "react";
 import {
   AppBar,
   IconButton,
@@ -20,23 +21,23 @@ import MenuIcon from "@mui/icons-material/Menu";
 import Swal from "sweetalert2";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { IMAGES, currencyFormatter } from "../../constants";
-import { CustomContext } from "../../context/providers/CustomProvider";
-import { getInitials } from "../../config/validation";
-import NotificationDropdown from "../../components/dropdowns/NotificationDropdown";
-import { AuthContext } from "../../context/providers/AuthProvider";
-import ActionMenu from "../../components/menu/ActionMenu";
-import { getWalletBalance } from "../../api/agentAPI";
-import { getAllNotifications } from "../../api/notificationAPI";
+import { IMAGES, currencyFormatter } from "@/constants";
+import { useCustomContext } from "@/context/providers/CustomProvider";
+import { getInitials } from "@/config/validation";
+import NotificationDropdown from "@/components/dropdowns/NotificationDropdown";
+import { useAuth } from "@/context/providers/AuthProvider";
+import ActionMenu from "@/components/menu/ActionMenu";
+import { getWalletBalance } from "@/api/agentAPI";
+import { getAllNotifications } from "@/api/notificationAPI";
 
 const ITEM_HEIGHT = 48;
 function Header() {
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const {
     customState: { openSidebar },
     customDispatch,
-  } = useContext(CustomContext);
+  } = useCustomContext();
 
   const {
     palette,
@@ -51,24 +52,25 @@ function Header() {
   const navigate = useNavigate();
 
   const walletBalance = useQuery({
-    queryKey: ["wallet-balance"],
+    queryKey: ["wallet-balance", user?.id],
     queryFn: () => getWalletBalance(),
     enabled: !!user?.id,
     initialData: 0,
   });
 
   const notifications = useQuery({
-    queryKey: ["notifications"],
-    queryFn: () => getAllNotifications(),
+    queryKey: ["notifications", user?.id],
+    queryFn: getAllNotifications,
     enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnMount: false,
+    staleTime: 1000 * 30,
+    cacheTime: 1000 * 60 * 5,
+    retry: 2,
     refetchOnWindowFocus: false,
-    initialData: []
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 
   const unReadNotifications = notifications?.data?.filter(
-    (item) => item?.active === 1
+    (item) => item?.isRead === false,
   );
 
   useEffect(() => {
@@ -181,12 +183,7 @@ function Header() {
           </Typography>
         </Stack>
 
-        <Stack
-          direction="row"
-          spacing={2}
-          sx='flex'
-          alignItems="center"
-        >
+        <Stack direction="row" spacing={2} sx="flex" alignItems="center">
           <>
             {user?.id ? (
               <>
