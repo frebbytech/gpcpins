@@ -25,10 +25,10 @@ import {
   getTransactionReport,
   getTransactions,
 } from "../../api/transactionAPI";
-import { useContext, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { resendVoucherORReceipt } from "../../api/paymentAPI";
 import { globalAlertType } from "../../components/alert/alertType";
-import { CustomContext } from "../../context/providers/CustomProvider";
+import { useCustomContext } from "../../context/providers/CustomProvider";
 import { currencyFormatter } from "../../constants";
 import moment from "moment";
 import { useSearchParams } from "react-router-dom";
@@ -169,7 +169,7 @@ const STATUS_CARD_CONFIG = [
 function Transactions() {
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { customDispatch } = useContext(CustomContext);
+  const { customDispatch } = useCustomContext();
 
   const [filterOpen, setFilterOpen] = useState(true);
   const [period, setPeriod] = useState("all");
@@ -370,16 +370,20 @@ function Transactions() {
           >
             View
           </MenuItem>
-          {/* {data?.mode === "Mobile Money" && ( */}
+          {data?.mode === "Mobile Money" && (
             <MenuItem
               sx={{ fontSize: 13 }}
-              onClick={() =>
-                handleCheckStatus(data?.reference || data?.id, data?.service)
-              }
+              onClick={() => {
+            
+                handleCheckStatus(
+                  data?.service === "prepaid" ? `prepaid-${data?.id}` : data?.reference,
+                  data?.service,
+                );
+              }}
             >
               Check Status
             </MenuItem>
-          {/* )} */}
+          )}
           {["voucher", "ticket"].includes(data?.service) &&
             data?.status === "completed" && (
               <>

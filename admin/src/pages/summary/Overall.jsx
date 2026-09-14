@@ -36,15 +36,14 @@ import PlainTable from "@/components/tables/PlainTable";
 import BarChart from "@/components/charts/BarChart";
 import { getTotalSales } from "@/api/transactionAPI";
 import LineChart from "@/components/charts/LineChart";
-import { useTheme } from "@emotion/react";
 import { recentTransactionColumns } from "@/mocks/columns";
 import { currencyFormatter, IMAGES } from "@/constants";
 import CountUp from "react-countup";
 import CustomStepper from "@/components/custom/CustomStepper";
 import AnimatedContainer from "@/components/animations/AnimatedContainer";
 import { useNavigate } from "react-router-dom";
-import { useContext, useMemo, useState } from "react";
-import { AuthContext } from "@/context/providers/AuthProvider";
+import {  useMemo, useState } from "react";
+import { useAuth } from "@/context/providers/AuthProvider";
 import { allBalance } from "@/api/paymentAPI";
 import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
 
@@ -60,10 +59,9 @@ const CATEGORY_COLORS = {
 };
 
 function Overall() {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const [showAlert, setShowAlert] = useState(true);
   const [searchValue, setSearchValue] = useState("");
-  const { palette } = useTheme();
   const navigate = useNavigate();
 
   const summary = useQuery({
@@ -142,13 +140,13 @@ function Overall() {
         )} remaining, so refunds can't be processed until it's topped up.`,
       );
     }
-    if (Number(balances?.brassicaBalance) < 1000) {
-      notices.push(
-        `Your Brassica balance is low — ${currencyFormatter(
-          balances?.brassicaBalance,
-        )} remaining, so recharges can't be processed until it's topped up.`,
-      );
-    }
+    // if (Number(balances?.brassicaBalance) < 1000) {
+    //   notices.push(
+    //     `Your Brassica balance is low — ${currencyFormatter(
+    //       balances?.brassicaBalance,
+    //     )} remaining, so recharges can't be processed until it's topped up.`,
+    //   );
+    // }
     return notices;
   }, [balances]);
 

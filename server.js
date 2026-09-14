@@ -12,6 +12,7 @@ const rateLimit = require("express-rate-limit");
 const hpp = require("hpp");
 const toobusy = require("toobusy-js");
 const http = require("http");
+const { IpDeniedError } = require("express-ipfilter");
 
 // Route imports
 const logRoute = require("./routes/logRoute");
@@ -39,7 +40,10 @@ const billerRoute = require("./routes/brassica/billers.js");
 const billerPaymentsRoute = require("./routes/brassica/payments.js");
 
 //
-const { verifyToken, verifyRefreshToken } = require("./middlewares/verifyToken");
+const {
+  verifyToken,
+  verifyRefreshToken,
+} = require("./middlewares/verifyToken");
 const knex = require("./db/knex");
 const socketAuth = require("./middlewares/socketAuth");
 const { initSocketServer, getIO } = require("./config/socket");
@@ -315,12 +319,17 @@ app.use((err, req, res, next) => {
       ? "An unexpected error occurred. Please try again later."
       : err.message;
 
-  res.status(status).json({
-    error: {
-      status,
-      message,
-    },
-  });
+  if (err instanceof IpDeniedError) {
+    res.status(401); // Unauthorized
+    res.json({ error: "Access denied: IP address not authorized." });
+  } else {
+    res.status(status).json({
+      error: {
+        status,
+        message,
+      },
+    });
+  }
 });
 
 async function bootstrap() {

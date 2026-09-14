@@ -1,6 +1,6 @@
 import { useState } from "react";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { Box, Alert, Container } from "@mui/material";
+import { Box, Alert, Container, MenuItem } from "@mui/material";
 import { NoteAlt, NoteRounded } from "@mui/icons-material";
 import { useAuth } from "@/context/providers/AuthProvider";
 import _ from "lodash";
@@ -16,9 +16,16 @@ import { currencyFormatter } from "@/constants";
 import { WALLET_TRANSACTIONS } from "@/mocks/columns";
 import DateRangePicker from "@/components/pickers/DateRangePicker";
 import CustomTotal from "@/components/custom/CustomTotal";
+import TransactionStatus from "@/components/modals/TransactionStatus";
+import WalletTransactionDetails from "./WalletTransactionDetails";
+import ActionMenu from "@/components/menu/ActionMenu";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 function AgentsWalletTransactions() {
   const { user } = useAuth();
+    const navigate = useNavigate();
+    const [selectedTransaction, setSelectedTransaction] = useState(null);
+      const [searchParams, setSearchParams] = useSearchParams();
   const [date, setDate] = useState([
     {
       startDate: new Date("2024-01-01"),
@@ -40,16 +47,61 @@ function AgentsWalletTransactions() {
   });
   const generateReport = () => {
     mutateAsync(date[0]);
+
   };
   const result = isLoading || isError || isSuccess;
+
+
+
+    const handleCheckStatus = (refId, service) => {
+    setSearchParams((params) => {
+      params.set("payment_reference", refId);
+      params.set("type", service);
+      params.set("open", true);
+      return params;
+    });
+  };
+
+    const columns = [
+    ...WALLET_TRANSACTIONS("agents"),
+    {
+      field: "",
+      title: "Action",
+      export: false,
+      render: (data) => (
+        <ActionMenu>
+          <MenuItem
+            sx={{ fontSize: 13 }}
+            onClick={() => setSelectedTransaction(data)}
+          >
+            View
+          </MenuItem>
+          {["deposit", "credit"].includes(data.type) && (
+            <MenuItem
+              sx={{ fontSize: 13 }}
+              onClick={() => {
+                handleCheckStatus(`wallet-${data?.id}`, "wallet");
+              }}
+            >
+              Check Status
+            </MenuItem>
+          )}
+        </ActionMenu>
+      ),
+    },
+  ];
+
   return (
-    <Container>
+    <div>
       <>
         <CustomTitle
           icon={<NoteAlt sx={{ width: 50, height: 50 }} color="primary" />}
           title="Agent Wallet Transactions"
           subtitle="Manage all your wallet transactions made by agents "
           showBack
+             onBack={() => {
+            navigate("/wallets/agent");
+          }}
         />
 
         {result && (
@@ -79,7 +131,7 @@ function AgentsWalletTransactions() {
           isLoading={transactions.isLoading}
           title="Transactions"
           search={true}
-          columns={WALLET_TRANSACTIONS("agents")}
+          columns={columns}
           data={transactions.data}
           showExportButton
           emptyMessage="No Transaction available"
@@ -133,10 +185,24 @@ function AgentsWalletTransactions() {
             exportButton: user?.permissions?.includes(
               "Export agent wallet Transaction",
             ),
+                 rowStyle: (rowData) => ({
+              borderLeft: `3px solid ${
+                rowData?.type === "credit" ? "#2e7d32" : "#c62828"
+              }`,
+            }),
           }}
         />
+
+        
+      <TransactionStatus />
+
+      <WalletTransactionDetails
+        open={Boolean(selectedTransaction)}
+        transaction={selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+      />
       </>
-    </Container>
+    </div>
   );
 }
 

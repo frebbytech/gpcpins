@@ -58,12 +58,11 @@ export const markAllNotificationsAsRead = async (ids) => {
   }
 };
 
-export const deleteNotifications = async ({ id, all }) => {
+export const deleteNotifications = async (id) => {
   try {
     const res = await api({
       method: "DELETE",
-      url: `/notifications`,
-      data: { id, all },
+      url: `/notifications/user/${id}`,
     });
 
     return res.data;

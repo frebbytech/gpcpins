@@ -30,16 +30,17 @@ import {
   markAllNotificationsAsRead,
   deleteNotifications,
 } from "../../api/notificationAPI"; // adjust import
-import { CustomContext } from "../../context/providers/CustomProvider";
+import { useCustomContext } from "../../context/providers/CustomProvider";
 import { globalAlertType } from "../../components/alert/alertType";
+import { useAuth } from "@/context/providers/AuthProvider";
 
 const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { customDispatch } = useContext(CustomContext); // you'll need to import useContext
+  const { user } = useAuth();
+  const { customDispatch } = useCustomContext(); // you'll need to import useContext
 
   const [searchTerm, setSearchTerm] = useState("");
-
 
   // Filter notifications based on search term
   const filteredNotifications = useMemo(() => {
@@ -48,7 +49,7 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
     return notifications.filter(
       (n) =>
         n.title?.toLowerCase().includes(term) ||
-        n.message?.toLowerCase().includes(term)
+        n.message?.toLowerCase().includes(term),
     );
   }, [notifications, searchTerm]);
 
@@ -58,22 +59,26 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
   const markReadMutation = useMutation({
     mutationFn: markAllNotificationsAsRead,
     onSuccess: () => {
-      customDispatch(globalAlertType("success", "Notifications marked as read"));
+      customDispatch(
+        globalAlertType("success", "Notifications marked as read"),
+      );
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (err) => {
-      customDispatch(globalAlertType("error", err.message || "Failed to mark as read"));
+      customDispatch(
+        globalAlertType("error", err.message || "Failed to mark as read"),
+      );
     },
   });
 
   const deleteAllMutation = useMutation({
-    mutationFn: deleteNotifications,
+    mutationFn: () => deleteNotifications(user?.id),
     onSuccess: () => {
       customDispatch(globalAlertType("success", "All notifications cleared"));
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (err) => {
-      customDispatch(globalAlertType("error", err.message || "Failed to clear notifications"));
+      customDispatch(globalAlertType("error", "Failed to clear notifications"));
     },
   });
 
@@ -86,7 +91,12 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
   const handleClearAll = () => deleteAllMutation.mutate();
 
   return (
-    <Drawer open={open} onClose={handleClose} anchor="right" PaperProps={{ sx: { width: { xs: 320, md: 450 } } }}>
+    <Drawer
+      open={open}
+      onClose={handleClose}
+      anchor="right"
+      PaperProps={{ sx: { width: { xs: 320, md: 450 } } }}
+    >
       <Stack sx={{ height: "100vh" }}>
         {/* Header */}
         <Stack
@@ -109,7 +119,10 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
         </Stack>
 
         {/* Actions & Search */}
-        <Stack spacing={1.5} sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+        <Stack
+          spacing={1.5}
+          sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}
+        >
           <Stack direction="row" spacing={1}>
             <Tooltip title="Mark all as read">
               <span>
@@ -132,7 +145,9 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
                   color="error"
                   startIcon={<DeleteSweepIcon />}
                   onClick={handleClearAll}
-                  disabled={notifications.length === 0 || deleteAllMutation.isPending}
+                  disabled={
+                    notifications.length === 0 || deleteAllMutation.isPending
+                  }
                 >
                   Clear all
                 </Button>
@@ -158,10 +173,18 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
         {/* Notifications List */}
         <Stack sx={{ flex: 1, overflowY: "auto", p: 1 }}>
           {filteredNotifications.length === 0 ? (
-            <Stack alignItems="center" justifyContent="center" sx={{ height: "100%", py: 8 }}>
-              <NotificationsOffIcon sx={{ fontSize: 48, color: "text.secondary", mb: 1 }} />
+            <Stack
+              alignItems="center"
+              justifyContent="center"
+              sx={{ height: "100%", py: 8 }}
+            >
+              <NotificationsOffIcon
+                sx={{ fontSize: 48, color: "text.secondary", mb: 1 }}
+              />
               <Typography color="text.secondary">
-                {searchTerm ? "No matching notifications" : "No notifications yet"}
+                {searchTerm
+                  ? "No matching notifications"
+                  : "No notifications yet"}
               </Typography>
             </Stack>
           ) : (
@@ -176,7 +199,11 @@ const NotificationDrawer = ({ open, setOpen, notifications = [] }) => {
         </Stack>
 
         {/* Footer */}
-        <Typography variant="caption" align="center" sx={{ py: 1, color: "text.disabled" }}>
+        <Typography
+          variant="caption"
+          align="center"
+          sx={{ py: 1, color: "text.disabled" }}
+        >
           Gab Powerful Consult &copy; {new Date().getFullYear()}
         </Typography>
 
@@ -222,7 +249,12 @@ const NotificationItem = ({ notification, onClick }) => {
         borderLeft: isUnread ? "3px solid #fabb7f" : "none",
       }}
     >
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{ mb: 0.5 }}
+      >
         <Typography variant="subtitle2" fontWeight={600} color="primary.main">
           {notification.title}
         </Typography>
@@ -262,7 +294,12 @@ const NotificationItem = ({ notification, onClick }) => {
         </Typography>
       )}
 
-      <Typography variant="caption" color="text.disabled" align="right" sx={{ display: "block" }}>
+      <Typography
+        variant="caption"
+        color="text.disabled"
+        align="right"
+        sx={{ display: "block" }}
+      >
         {moment(notification.createdAt).fromNow()}
       </Typography>
     </Stack>
@@ -270,9 +307,6 @@ const NotificationItem = ({ notification, onClick }) => {
 };
 
 export default NotificationDrawer;
-
-
-
 
 // import {
 //   Drawer,

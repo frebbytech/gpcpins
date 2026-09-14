@@ -8,6 +8,7 @@ const { rateLimit } = require("express-rate-limit");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
+const { IpFilter } = require("express-ipfilter");
 
 //functons
 const {
@@ -47,7 +48,6 @@ const {
   airtimeSchema,
   airtimeTopUpSchema,
   bundleTopUpSchema,
-  billerPaymentSchema,
 } = require("../utils/validationSchema");
 const validateECG = require("../middlewares/validate");
 const { validatePayment, validate } = require("../middlewares/validators");
@@ -83,8 +83,10 @@ const NETWORK_MAP = {
   // add others as needed
 };
 
+const clientWhitelist = process.env.CLIENT_WHITELIST?.split(",");
+
 const SUCCESS_CODES = ["00", "09"]; // from external APIs
-const ALLOWED_TYPES = ["voucher", "ticket", "prepaid", "airtime", "bundle"];
+// const ALLOWED_TYPES = ["voucher", "ticket", "prepaid", "airtime", "bundle"];
 
 const PAYMENT_TABLE_MAP = {
   v: "vw_payments_voucher_transactions",
@@ -94,21 +96,21 @@ const PAYMENT_TABLE_MAP = {
   w: "vw_payments_wallet_transactions",
 };
 
-const BASE_PAYMENT_FIELDS = [
-  "id",
-  "paymentId",
-  "paymentReference",
-  "service",
-  "amount",
-  "phonenumber",
-  "userId",
-  "status",
-];
+// const BASE_PAYMENT_FIELDS = [
+//   "id",
+//   "paymentId",
+//   "paymentReference",
+//   "service",
+//   "amount",
+//   "phonenumber",
+//   "userId",
+//   "status",
+// ];
 
-const STATUS_MAP = {
-  "0000": "completed",
-  "0001": "pending",
-};
+// const STATUS_MAP = {
+//   "0000": "completed",
+//   "0001": "pending",
+// };
 
 const corsOptions = {
   methods: "POST",
@@ -123,6 +125,11 @@ const ALLOWED_CATEGORIES = [
   "security",
   "bus",
 ];
+
+const callbackIpFilter = IpFilter(clientWhitelist, {
+  mode: "allow", // 'allow' acts as a whitelist (blocks everything else)
+  log: false, // Set to true if you want to console.log blocked attempts
+});
 
 const rlimit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
@@ -1419,9 +1426,11 @@ router.post(
     const trx = await knex.transaction();
 
     try {
-      const { id: userId, name, email } = req.user;
-      const { phoneNumber, mobilePartner, amount } = info;
-      // console.log(info)
+      const { name } = req.user;
+      const { userId, phoneNumber, mobilePartner, amount } = info;
+
+      console.log("----body---");
+      console.log(req.body);
 
       // ---------------- VALIDATION ----------------
 
@@ -1471,7 +1480,7 @@ router.post(
         institutionCode: mobilePartner,
         accountNumber: userPhone,
         accountName: name || "GPC Customer",
-        amount: Number(amount).toFixed(2)?.toString(),
+        amount: Number(amount).toString(),
         transaction_Id: `wallet-${paymentId}`,
         debitNaration: "Top up GPC Wallet Amount",
       };
@@ -1517,19 +1526,19 @@ router.post(
         comment: `wallet top-up`,
         phonenumber: userPhone,
         amount: amount,
-         status: isProduction ? paymentStatus : "completed",
+        status: isProduction ? paymentStatus : "completed",
         reference,
       });
 
       await trx.commit();
 
-      // console.log("done")
+ 
 
       return res.status(200).json({
         paymentId,
         reference: reference,
         transactionId: paymentId,
-        status:isProduction ? paymentStatus : "completed",
+        status: isProduction ? paymentStatus : "completed",
         categoryType: "wallet",
       });
     } catch (error) {
@@ -2246,11 +2255,11 @@ router.post(
 //@ Payment callback brassica
 router.post(
   "/callback",
-  // cors(corsOptions),
+  callbackIpFilter,
   rlimit,
   asyncHandler(async (req, res) => {
     const payload = req.body;
-    // console.log(payload)
+    console.log(payload);
 
     if (!payload?.transactionId) return res.sendStatus(204);
 
@@ -2465,6 +2474,7 @@ router.post(
 router.post(
   "/feedback/callback/:type/:id",
   cors(corsOptions),
+  callbackIpFilter,
   rlimit,
   asyncHandler(async (req, res) => {
     const { type } = req.params;
@@ -2966,7 +2976,7 @@ async function processWalletTopUp(trx, transaction) {
       user_id: transaction.userId,
       type: "wallet",
       title: "Wallet Transaction",
-      body: `Your wallet top-up of ${currencyFormatter(transaction.amount)} has been processed. Transaction ID: ${transaction.walletTransactionId}`,
+      body: `Your wallet top-up of ${currencyFormatter(transaction.amount)} has been processed. Trans.ID: ${transaction.walletTransactionId}`,
     });
   }
 }
@@ -3163,7 +3173,7 @@ ${phonenumber}.Please visit https://www.gpcpins.com/evoucher to buy more tickets
 
 async function sendWalletTopUpMessage(transaction) {
   if (transaction.status === "completed") {
-    const message = `Your wallet top-up of ${currencyFormatter(transaction.amount)} has been processed. Transaction ID: ${transaction.walletTransactionId}`;
+    const message = `Your wallet top-up of ${currencyFormatter(transaction.amount)} has been processed. Trans.ID: ${transaction.walletTransactionId}`;
     const partner = safeJSON(transaction?.partner);
 
     const sms = await sendSMS(message, partner?.phonenumber);

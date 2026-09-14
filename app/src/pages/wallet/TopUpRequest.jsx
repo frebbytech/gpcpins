@@ -1,4 +1,4 @@
-import {  useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import {
@@ -93,12 +93,11 @@ function TopUpRequest() {
     },
     onSuccess: (data) => {
       if (data) {
-      
         navigate(`/confirm`, {
           replace: true,
           state: {
-            id: data?.paymentId,
-             transactionReference: data?.reference,
+            id: data?.transactionId,
+            transactionReference: data?.reference,
             categoryType: "wallet",
             path: pathname,
             isWallet: false,
@@ -143,7 +142,7 @@ function TopUpRequest() {
 
     if (result.isConfirmed) {
       try {
-        await mutateAsync(previewData);
+        await mutateAsync({ ...previewData, userId: user?.id });
         // Success handled by onSuccess
       } catch (error) {
         // Error handled by onError

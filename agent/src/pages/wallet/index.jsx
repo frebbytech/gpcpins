@@ -2,7 +2,6 @@ import {  useState } from "react";
 import {
   Box,
   ListItemText,
-  Divider,
   Button,
   ButtonGroup,
   Paper,
@@ -47,7 +46,7 @@ function Wallet() {
 
   const walletBalance = useQuery({
     queryKey: ["wallet-balance"],
-    queryFn: () => getWalletBalance(),
+    queryFn: () => getWalletBalance(user?.id),
     enabled: !!user?.id,
     // No `initialData` — it made react-query report this query as already
     // "successful" from mount, so the real balance briefly looked like a

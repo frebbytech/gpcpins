@@ -8,15 +8,42 @@ import {
   Person,
   PersonOutlined,
 } from "@mui/icons-material";
-import { BottomNavigation, BottomNavigationAction, Paper, useTheme } from "@mui/material";
+import {
+  BottomNavigation,
+  BottomNavigationAction,
+  Paper,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
 import { useAuth } from "../../context/providers/AuthProvider";
 
 // Navigation items configuration
 const navItems = [
-  { label: "Home", icon: Home, path: "/", matchPattern: "/" },
-  { label: "Checkers/Tickets", icon: LocalOffer, path: "/evoucher", matchPattern: "/evoucher" },
-  { label: "Prepaid/Postpaid", icon: Bolt, path: "/electricity", matchPattern: "/electricity" },
-  { label: "Airtime/Bundle", icon: ReceiptLong, path: "/airtime", matchPattern: "/airtime" },
+  {
+    label: "Home",
+    icon: Home,
+    path: "/",
+    matchPattern: "/",
+    hideOnMobile: true,
+  },
+  {
+    label: "Checkers/Tickets",
+    icon: LocalOffer,
+    path: "/evoucher",
+    matchPattern: "/evoucher",
+  },
+  {
+    label: "Prepaid/Postpaid",
+    icon: Bolt,
+    path: "/electricity",
+    matchPattern: "/electricity",
+  },
+  {
+    label: "Airtime/Bundle",
+    icon: ReceiptLong,
+    path: "/airtime",
+    matchPattern: "/airtime",
+  },
 ];
 
 function BottomNav() {
@@ -25,24 +52,44 @@ function BottomNav() {
   const location = useLocation();
   const theme = useTheme();
 
-  // Determine which item is active (0-indexed)
+  // Detect if screen size matches your "smaller screen" threshold (e.g., mobile view 'xs')
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  // Conditional user item (Profile or Sign up)
+  const userItem = user?.id
+    ? {
+        label: "Profile",
+        icon: PersonOutlined,
+        path: "/profile",
+        matchPattern: "/profile",
+        hideOnMobile: true,
+      }
+    : {
+        label: "Sign up",
+        icon: Person,
+        path: "/user/register",
+        matchPattern: "/user/register",
+        hideOnMobile: true,
+      };
+
+  // Combine items and filter out the ones marked to hide on mobile view
+  const visibleItems = useMemo(() => {
+    const combined = [...navItems, userItem];
+    return isMobile ? combined.filter((item) => !item.hideOnMobile) : combined;
+  }, [isMobile, userItem]);
+
+  // Determine which item is active based on the visible list
   const activeIndex = useMemo(() => {
-    const index = navItems.findIndex((item) => location.pathname === item.path);
+    const index = visibleItems.findIndex(
+      (item) => location.pathname === item.path,
+    );
     return index !== -1 ? index : 0;
-  }, [location.pathname]);
+  }, [location.pathname, visibleItems]);
 
   // Handle navigation
   const handleNavigate = (path) => {
     navigate(path, { replace: true });
   };
-
-  // Conditional user item (Profile or Sign up)
-  const userItem = user?.id
-    ? { label: "Profile", icon: PersonOutlined, path: "/profile", matchPattern: "/profile" }
-    : { label: "Sign up", icon: Person, path: "/user/register", matchPattern: "/user/register" };
-
-  // Combine all items
-  const allItems = [...navItems, userItem];
 
   // Active color from theme
   const activeColor = theme.palette.primary.main;
@@ -66,7 +113,7 @@ function BottomNav() {
       <BottomNavigation
         showLabels
         value={activeIndex}
-        onChange={(_, newValue) => handleNavigate(allItems[newValue].path)}
+        onChange={(_, newValue) => handleNavigate(visibleItems[newValue].path)}
         sx={{
           height: 65,
           "& .MuiBottomNavigationAction-root": {
@@ -78,7 +125,7 @@ function BottomNav() {
           },
         }}
       >
-        {allItems.map((item, index) => {
+        {visibleItems.map((item, index) => {
           const isActive = index === activeIndex;
           const IconComponent = item.icon;
           return (

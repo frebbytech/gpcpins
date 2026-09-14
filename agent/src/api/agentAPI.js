@@ -289,11 +289,11 @@ export const disableWallet = async () => {
   }
 };
 
-export const getWalletBalance = async () => {
+export const getWalletBalance = async (id) => {
   try {
     const res = await api({
       method: "GET",
-      url: `/wallet/balance`,
+      url: `/wallet/balance?id=${id}`,
     });
 
     return res.data;

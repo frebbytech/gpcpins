@@ -1,6 +1,6 @@
 import { useState } from "react";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { Box, Alert } from "@mui/material";
+import { Box, Alert, MenuItem } from "@mui/material";
 import { NoteAlt, NoteRounded } from "@mui/icons-material";
 import { useAuth } from "@/context/providers/AuthProvider";
 import _ from "lodash";
@@ -16,10 +16,16 @@ import { currencyFormatter } from "@/constants";
 import { WALLET_TRANSACTIONS } from "@/mocks/columns";
 import DateRangePicker from "@/components/pickers/DateRangePicker";
 import CustomTotal from "@/components/custom/CustomTotal";
+import ActionMenu from "@/components/menu/ActionMenu";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import TransactionStatus from "@/components/modals/TransactionStatus";
+import WalletTransactionDetails from "./WalletTransactionDetails";
 
 function UsersWalletTransactions() {
   const { user } = useAuth();
-
+  const navigate = useNavigate();
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [date, setDate] = useState([
     {
       startDate: new Date("2024-01-01"),
@@ -36,6 +42,8 @@ function UsersWalletTransactions() {
     initialData: [],
   });
 
+  // console.log(transactions.data)
+
   const { mutateAsync, isLoading, isSuccess, isError, data } = useMutation({
     mutationFn: geAllUserWalletTransactionReport,
   });
@@ -43,6 +51,45 @@ function UsersWalletTransactions() {
     mutateAsync(date[0]);
   };
   const result = isLoading || isError || isSuccess;
+
+  const handleCheckStatus = (refId, service) => {
+    setSearchParams((params) => {
+      params.set("payment_reference", refId);
+      params.set("type", service);
+      params.set("open", true);
+      return params;
+    });
+  };
+
+  const columns = [
+    ...WALLET_TRANSACTIONS("users"),
+    {
+      field: "",
+      title: "Action",
+      export: false,
+      render: (data) => (
+        <ActionMenu>
+          <MenuItem
+            sx={{ fontSize: 13 }}
+            onClick={() => setSelectedTransaction(data)}
+          >
+            View
+          </MenuItem>
+          {["deposit", "credit"].includes(data.type) && (
+            <MenuItem
+              sx={{ fontSize: 13 }}
+              onClick={() => {
+                handleCheckStatus(`wallet-${data?.id}`, "wallet");
+              }}
+            >
+              Check Status
+            </MenuItem>
+          )}
+        </ActionMenu>
+      ),
+    },
+  ];
+
   return (
     <div>
       <>
@@ -51,6 +98,9 @@ function UsersWalletTransactions() {
           title="User Wallet Transactions"
           subtitle="Manage all your wallet transactions made by users "
           showBack
+          onBack={() => {
+            navigate("/wallets");
+          }}
         />
 
         {result && (
@@ -80,7 +130,7 @@ function UsersWalletTransactions() {
           isLoading={transactions.isLoading}
           title="Transactions"
           search={true}
-          columns={WALLET_TRANSACTIONS("users")}
+          columns={columns}
           data={transactions.data}
           showExportButton
           emptyMessage="No Transaction available"
@@ -91,6 +141,11 @@ function UsersWalletTransactions() {
             exportButton: user?.permissions?.includes(
               "Export user wallet Transaction",
             ),
+            rowStyle: (rowData) => ({
+              borderLeft: `3px solid ${
+                rowData?.type === "credit" ? "#2e7d32" : "#c62828"
+              }`,
+            }),
           }}
           autocompleteComponent={
             <>
@@ -102,7 +157,7 @@ function UsersWalletTransactions() {
                   alignItems: "center",
                   gap: 2,
                   flexWrap: "wrap",
-                  mb:5
+                  mb: 5,
                 }}
               >
                 <CustomTotal
@@ -137,6 +192,14 @@ function UsersWalletTransactions() {
           }
         />
       </>
+
+      <TransactionStatus />
+
+      <WalletTransactionDetails
+        open={Boolean(selectedTransaction)}
+        transaction={selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+      />
     </div>
   );
 }

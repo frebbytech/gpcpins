@@ -198,18 +198,7 @@ export const getUser = async (id) => {
     throw error.response.data;
   }
 };
-export const getWalletBalance = async () => {
-  try {
-    const res = await api({
-      method: "GET",
-      url: `/wallet/balance`,
-    });
 
-    return res.data;
-  } catch (error) {
-    throw error.response.data;
-  }
-};
 export const getWalletTransaction = async () => {
   try {
     const res = await api({

@@ -10,7 +10,7 @@ import {
   alpha,
   useTheme,
   Chip,
-  Divider,
+  // Divider,
   Button,
   Paper,
 } from "@mui/material";
@@ -124,9 +124,9 @@ const TransactionPreviewDialog = ({
     id,
   } = transaction;
 
-  const isCompleted = status === "completed";
-  const isPending = status === "pending";
-  const isRefunded = status === "refunded";
+  // const isCompleted = status === "completed";
+  // const isPending = status === "pending";
+  // const isRefunded = status === "refunded";
 
   // Determine recipient display
   let recipientDisplay = "";
@@ -326,7 +326,10 @@ const TransactionPreviewDialog = ({
           <Button
             variant="contained"
             color="info"
-            onClick={() => onCheckStatus && onCheckStatus(reference, service)}
+            onClick={() =>
+              onCheckStatus &&
+              onCheckStatus(service === "prepaid" ? id : reference, service)
+            }
             sx={{ borderRadius: 1.2, textTransform: "none", fontWeight: 600 }}
           >
             Check Status

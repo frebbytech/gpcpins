@@ -90,11 +90,10 @@ router.get(
   limit,
   verifyToken,
   asyncHandler(async (req, res) => {
-    const { id: userId } = req.user;
     const { id } = req.query;
 
     const wallet = await knex("wallets")
-      .where("user_id", userId || id)
+      .where("user_id", id)
       .select("amount", "user_id")
       .first();
 

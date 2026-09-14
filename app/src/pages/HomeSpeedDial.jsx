@@ -46,7 +46,7 @@ export default function HomeSpeedDial() {
         display: "flex",
         position: "fixed",
         bottom: "12%",
-        left: "2%",
+        left: "1%",
       }}
       icon={<SupportAgentIcon />}
       onClose={handleClose}

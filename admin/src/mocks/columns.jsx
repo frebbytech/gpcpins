@@ -10,6 +10,7 @@ import {
   Typography,
   LinearProgress,
 } from "@mui/material";
+import { ArrowDownward, ArrowUpward } from "@mui/icons-material";
 import DOMPurify from "dompurify";
 import { currencyFormatter, IMAGES } from "../constants";
 import { format } from "date-fns"; // replaced moment
@@ -21,7 +22,7 @@ import { getInitials } from "../config/validation";
 import Active from "../components/Active";
 import { Link } from "react-router-dom";
 import { hidePin } from "../config/hideDetails";
-import { textTransform } from "@mui/system";
+
 
 export const ContactInfo = ({ email, phonenumber }) => {
   return (
@@ -1991,23 +1992,7 @@ export const WALLET_TRANSACTIONS = (type) => [
     field: "status",
     render: ({ status }) => <StatusChip status={status} />,
   },
-  // {
-  //   title: "DATE",
-  //   field: "createdAt",
-  //   export: false,
-  //   render: (rowData) => (
-  //     <ListItemText
-  //       primary={format(new Date(rowData.createdAt), "do MMM, yyyy")}
-  //       secondary={format(new Date(rowData.createdAt), "h:mm a")}
-  //       primaryTypographyProps={{
-  //         color: "primary.main",
-  //       }}
-  //       secondaryTypographyProps={{
-  //         color: "info.main",
-  //       }}
-  //     />
-  //   ),
-  // },
+ 
   {
     title: "User",
     field: "name",
@@ -2028,37 +2013,69 @@ export const WALLET_TRANSACTIONS = (type) => [
     title: "AMOUNT",
     field: "amount",
     type: "currency",
-    currencySetting: {
-      currencyCode: "GHS",
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    },
-    cellStyle: {
-      color: "green",
-    },
-  },
-  { title: "Comment", field: "comment" },
-  { title: "Type", field: "type" },
-  {
-    title: "Attachment",
-    field: "attachment",
-    export: false,
-    render: (rowData) => {
-      return rowData?.attachment ? (
-        <Button
-          LinkComponent="a"
-          target="_blank"
-          href={rowData?.attachment}
-          endIcon={<Attachment color="secondary" />}
+    cellStyle: { fontWeight: 700 },
+    render: ({ amount, type }) => {
+      const isCredit = type === "credit";
+      return (
+        <Typography
+          component="span"
+          sx={{
+            fontWeight: 700,
+            fontSize: 13,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 0.5,
+            color: isCredit ? "success.main" : "error.main",
+          }}
         >
-          View File
-        </Button>
-      ) : (
-        "N/A"
+          {isCredit ? "+" : "-"} {currencyFormatter(Number(amount || 0))}
+        </Typography>
       );
     },
   },
-  // { title: "Issued By", field: "issuerName" },
+  {
+    title: "Type",
+    field: "type",
+    render: ({ type }) => {
+      const isCredit = type === "credit";
+      const TypeIcon = isCredit ? ArrowDownward : ArrowUpward;
+      return (
+        <Chip
+          size="small"
+          color={isCredit ? "success" : "error"}
+          icon={<TypeIcon sx={{ fontSize: 15 }} />}
+          label={type ?? "N/A"}
+          sx={{
+            fontWeight: 700,
+            fontSize: 11,
+            letterSpacing: 0.5,
+            textTransform: "capitalize",
+          }}
+        />
+      );
+    },
+  },
+  { title: "Comment", field: "comment" },
+  // {
+  //   title: "Attachment",
+  //   field: "attachment",
+  //   export: false,
+  //   render: (rowData) => {
+  //     return rowData?.attachment ? (
+  //       <Button
+  //         LinkComponent="a"
+  //         target="_blank"
+  //         href={rowData?.attachment}
+  //         endIcon={<Attachment color="secondary" />}
+  //       >
+  //         View File
+  //       </Button>
+  //     ) : (
+  //       "N/A"
+  //     );
+  //   },
+  // },
+
 ];
 
 export const EMPLOYEES_ROLES = [

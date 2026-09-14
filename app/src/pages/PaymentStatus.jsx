@@ -800,6 +800,7 @@ function PaymentStatus() {
   }, []);
 
   // Polling query (fallback)
+  console.log(state)
   const confirmPayment = useQuery({
     queryKey: ["confirm-payment", state?.id, state?.categoryType],
     queryFn: () =>
@@ -846,16 +847,16 @@ function PaymentStatus() {
     }
   }, [isError, error, failureReason, paymentStatus, handlePaymentError]);
 
-  const { mutateAsync, isPending } = useMutation({
-    mutationFn: reConfirmPayment,
-  });
+  // const { mutateAsync, isPending } = useMutation({
+  //   mutationFn: reConfirmPayment,
+  // });
 
-  const handleReConfirmPayment = () => {
-    mutateAsync({
-      paymentReference: state?.transactionReference,
-      type: state?.categoryType,
-    });
-  };
+  // const handleReConfirmPayment = () => {
+  //   mutateAsync({
+  //     paymentReference: state?.transactionReference,
+  //     type: state?.categoryType,
+  //   });
+  // };
 
   // Derived states
   const isCancelled =

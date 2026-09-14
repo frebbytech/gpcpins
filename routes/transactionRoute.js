@@ -1760,7 +1760,7 @@ router.get(
       }
 
       const response = await moneyStatus(clientReference);
-    
+
       return res.status(200).json(response.data);
     } catch (error) {
       // console.log(error);
@@ -3249,6 +3249,7 @@ router.get(
     const { startDate, endDate, report } = req.query;
 
     const { role } = req.params;
+  
 
     if (role !== "users" && role !== "agents") {
       return res.status(400).json("Invalid role");
@@ -3256,31 +3257,34 @@ router.get(
 
     const roleCode =
       role === "users" ? process.env.USER_ID : process.env.AGENT_ID;
+    const roleId = await knex("roles")
+      .select("id")
+      .where("code", roleCode)
+      .first();
+   
 
     const sDate = moment(startDate).format("YYYY-MM-DD");
     const eDate = moment(endDate).format("YYYY-MM-DD");
 
-    const transactions = await knex("vw_user_wallet_transactions_view")
-      .join("users", "vw_user_wallet_transactions_view.issuer", "=", "users.id")
+    const transactions = await knex("wallet_transactions")
+      .join("users", "wallet_transactions.user_id", "=", "users.id")
       .select(
-        "vw_user_wallet_transactions_view.id",
-        "vw_user_wallet_transactions_view.userId",
-        "vw_user_wallet_transactions_view.name",
-        "vw_user_wallet_transactions_view.amount",
-        "vw_user_wallet_transactions_view.type",
-        "vw_user_wallet_transactions_view.comment",
-        "vw_user_wallet_transactions_view.attachment",
-        "vw_user_wallet_transactions_view.status",
-        "vw_user_wallet_transactions_view.issuer as issuerId",
-        "vw_user_wallet_transactions_view.createdAt",
-        "users.fullname as issuerName",
+        "wallet_transactions.id as id",
+        "wallet_transactions.user_id as userId",
+        "wallet_transactions.amount as amount",
+        "wallet_transactions.type as type",
+        "wallet_transactions.comment as comment",
+        "wallet_transactions.attachment as attachment",
+        "wallet_transactions.status as status",
+        "wallet_transactions.issuer as issuerId",
+        "wallet_transactions.created_at as createdAt",
+        "users.fullname as name",
+        "users.role_id as role",
       )
-      .where("vw_user_wallet_transactions_view.role", roleCode)
-      .whereBetween("vw_user_wallet_transactions_view.createdAt", [
-        startDate,
-        endDate,
-      ])
-      .orderBy("vw_user_wallet_transactions_view.createdAt", "desc");
+      .where("users.role_id", roleId?.id)
+      .whereBetween("wallet_transactions.created_at", [startDate, endDate])
+      .orderBy("wallet_transactions.created_at", "desc");
+    // console.log(transactions);
 
     if (report && report === "true") {
       if (transactions.length === 0) {

@@ -53,7 +53,7 @@ function Header() {
 
   const walletBalance = useQuery({
     queryKey: ["wallet-balance", user?.id],
-    queryFn: () => getWalletBalance(),
+    queryFn: () => getWalletBalance(user?.id),
     enabled: !!user?.id,
     initialData: 0,
   });

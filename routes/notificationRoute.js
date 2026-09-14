@@ -564,10 +564,10 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const broadcastMessage = await knex("broadcast_messages")
-      .where("id", id)
-      .del();
-    const notification = await knex("notifications").where("id", id).del();
+    // const broadcastMessage = await knex("broadcast_messages")
+    //   .where("id", id)
+    //   .del();
+    const notification = await knex("notifications").where("user_id", id).del();
 
     if (!notification) {
       return res.status(404).json("Error removing notification!");
