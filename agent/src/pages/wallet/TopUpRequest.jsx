@@ -449,7 +449,7 @@ function TopUpRequest() {
               },
             }}
           >
-            Confirm & Top Up
+             Top Up
           </LoadingButton>
         </Box>
       </Dialog>

@@ -723,7 +723,7 @@ function PaymentStatus() {
   const handlePaymentSuccess = useCallback(
     (data) => {
       if (!data?.id || data?.status !== "completed") return;
-      console.log("Payment confirmed:", data);
+  
       setStatus("success");
 
       if (state?.isWallet) {
@@ -800,7 +800,7 @@ function PaymentStatus() {
   }, []);
 
   // Polling query (fallback)
-  console.log(state)
+
   const confirmPayment = useQuery({
     queryKey: ["confirm-payment", state?.id, state?.categoryType],
     queryFn: () =>

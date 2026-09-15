@@ -211,7 +211,6 @@ router.post(
       }
     }
 
-    console.log(availableMeter)
 
     const meterDetails = {
       id: generateId(),

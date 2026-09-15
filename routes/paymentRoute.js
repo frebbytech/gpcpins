@@ -128,7 +128,7 @@ const ALLOWED_CATEGORIES = [
 
 const callbackIpFilter = IpFilter(clientWhitelist, {
   mode: "allow", // 'allow' acts as a whitelist (blocks everything else)
-  log: false, // Set to true if you want to console.log blocked attempts
+  log: true, // Set to true if you want to console.log blocked attempts
 });
 
 const rlimit = rateLimit({
@@ -587,7 +587,6 @@ router.get(
       // ---------------- FETCH TRANSACTION + PAYMENT ----------------
 
       const transaction = await getTransaction(serviceType, id, trx);
-      console.log(transaction);
 
       if (!transaction) {
         await trx.rollback();
@@ -1429,9 +1428,6 @@ router.post(
       const { name } = req.user;
       const { userId, phoneNumber, mobilePartner, amount } = info;
 
-      console.log("----body---");
-      console.log(req.body);
-
       // ---------------- VALIDATION ----------------
 
       if (!amount || Number(amount) <= 0) {
@@ -1480,16 +1476,16 @@ router.post(
         institutionCode: mobilePartner,
         accountNumber: userPhone,
         accountName: name || "GPC Customer",
-        amount: Number(amount).toString(),
+        amount: Number(amount)?.toFixed(2).toString(),
         transaction_Id: `wallet-${paymentId}`,
         debitNaration: "Top up GPC Wallet Amount",
       };
 
       try {
-        if (isProduction) {
+        // if (isProduction) {
           await sendBrassicaMoney(momoPayload);
           paymentStatus = "pending";
-        }
+        // }
       } catch (error) {
         console.log(error);
         return res
@@ -1531,8 +1527,6 @@ router.post(
       });
 
       await trx.commit();
-
- 
 
       return res.status(200).json({
         paymentId,
@@ -3472,99 +3466,3 @@ async function handlePostPaymentEvents(payment, status, payload) {
     logger.error("[Webhook] Error processing callback payload:", error);
   }
 }
-
-// const paymentCallback = async (res, payload, type) => {
-//   const reference = payload?.Data?.ClientReference;
-//   if (!reference || !type) return res.sendStatus(204);
-
-//   const doneKey = `payment:processed:${reference}`;
-//   const lockKey = `payment:lock:${reference}`;
-
-//   // 1. Already processed?
-//   if (await redisClient.get(doneKey)) {
-//     return res.sendStatus(200);
-//   }
-
-//   // 2. Acquire lock
-//   const lock = await redisClient.set(lockKey, "1", "NX", "EX", 60);
-
-//   if (!lock) return res.sendStatus(200);
-
-//   let trx;
-
-//   try {
-//     const statusMap = {
-//       "0000": "completed",
-//       "0001": "pending",
-//     };
-
-//     const newStatus = statusMap[payload.ResponseCode] || "failed";
-
-//     const table = PAYMENT_TABLE_MAP[type];
-//     if (!table) return res.sendStatus(204);
-
-//     trx = await knex.transaction();
-
-//     const payment = await trx(table)
-//       .where({ paymentReference: reference })
-//       .first();
-
-//     if (!payment) {
-//       await trx.rollback();
-//       return res.sendStatus(204);
-//     }
-
-//     // idempotency DB guard
-//     if (payment.status === "completed") {
-//       await trx.commit();
-//       return res.sendStatus(200);
-//     }
-
-//     await trx("payments")
-//       .where({ id: payment.paymentId })
-//       .andWhereNot({ status: "completed" })
-//       .update({
-//         status: newStatus,
-//         externalTransactionId: payload?.Data?.ExternalTransactionId,
-//         updated_at: knex.fn.now(),
-//       });
-
-//     await trx.commit();
-
-//     // mark processed
-//     await redisClient.set(doneKey, "1", "EX", 86400);
-//     await redisClient.del(lockKey);
-
-//     // async events
-//     queueMicrotask(() => handlePostPaymentEvents(payment, newStatus, payload));
-//   } catch (err) {
-//     if (trx) await trx.rollback();
-//     await redisClient.del(lockKey);
-//     logger.error(err);
-//     console.log(err);
-//     res.sendStatus(500);
-//   }
-// };
-
-// ecg wallet option
-
-// if (isWallet && !_.isEmpty(transaction)) {
-//   setImmediate(async () => {
-//     await emitPaymentSuccess({
-//       userId: userID,
-//       txRef: transaction_reference || info?.phonenumber,
-//       amount: amount,
-//       transaction: {
-//         id: transaction_id || paymentId,
-//         paymentReference: transaction_reference,
-//         status: paymentStatus,
-//         userName: info?.name || "Customer",
-//         email: info?.email,
-//         phonenumber: info?.phonenumber,
-//         paymentMode: "Wallet",
-//         amount: amount,
-//         createdAt: new Date().toISOString(),
-//       },
-//     });
-//   });
-// }

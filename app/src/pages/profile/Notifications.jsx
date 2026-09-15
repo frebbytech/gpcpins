@@ -51,7 +51,7 @@ import moment from "moment";
 import DOMPurify from "dompurify";
 import Swal from "sweetalert2";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AuthContext } from "../../context/providers/AuthProvider";
+import { AuthContext, useAuth } from "../../context/providers/AuthProvider";
 import { useCustomContext } from "../../context/providers/CustomProvider";
 import { globalAlertType } from "../../components/alert/alertType";
 import AnimatedContainer from "../../components/animations/AnimatedContainer";
@@ -380,7 +380,7 @@ function StatCard({ icon: Icon, label, value, color }) {
 
 const Notifications = () => {
   const theme = useTheme();
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const { notifications: notifs, customDispatch } = useCustomContext();
   const queryClient = useQueryClient();
 

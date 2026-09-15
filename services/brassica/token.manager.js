@@ -67,7 +67,7 @@ async function getBrassicaToken() {
     await sleep(500);
 
     token = await getToken();
-    console.log(token);
+  
 
     if (token) {
       return token;

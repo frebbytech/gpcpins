@@ -43,11 +43,12 @@ async function sendBrassicaMoney(payload) {
       transactionId,
     });
 
+    // console.log(data)
+
     if (data?.statusCode !== "202" || data?.status !== "ACCEPTED") {
       throw new Error("Error processing payment");
     }
 
-    // console.log(data)
 
     return { success: true, data };
   } catch (err) {

@@ -70,7 +70,7 @@ const PrepaidTransactions = ({ open, setOpen }) => {
     });
   };
 
-  console.log(transactions.data)
+ 
 
   // const { mutateAsync } = useMutation({
   //   mutationFn: deletePrepaidTransaction,

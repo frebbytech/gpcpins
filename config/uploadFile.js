@@ -251,7 +251,7 @@ async function deleteFile(storagePath) {
 async function deleteServerFile(filePath) {
   try {
     await fsPromises.unlink(filePath);
-    console.log(`Successfully deleted: ${filePath}`);
+   
     return true;
   } catch (error) {
     // Prevent crashing if the file is already gone

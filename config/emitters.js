@@ -10,6 +10,7 @@
 |
 */
 
+const logger = require("../utils/logger");
 const { getIO } = require("./socket");
 
 const emitPaymentSuccess = async ({ userId, txRef, amount, transaction }) => {
@@ -35,7 +36,7 @@ const emitPaymentSuccess = async ({ userId, txRef, amount, transaction }) => {
         amount,
         transaction,
       });
-      console.log(`Payment success emitted from: user:payment:${userId} `);
+      logger.log(`Payment success emitted from: user:payment:${userId} `);
     }
 
     /*
@@ -54,7 +55,7 @@ const emitPaymentSuccess = async ({ userId, txRef, amount, transaction }) => {
       transaction,
     });
 
-    console.log(`Payment success emitted:from payment:payment:${txRef}`);
+    logger.log(`Payment success emitted:from payment:payment:${txRef}`);
   } catch (error) {
     console.error(error);
   }
