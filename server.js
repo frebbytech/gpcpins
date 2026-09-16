@@ -12,7 +12,7 @@ const rateLimit = require("express-rate-limit");
 const hpp = require("hpp");
 const toobusy = require("toobusy-js");
 const http = require("http");
-const { IpDeniedError } = require("express-ipfilter");
+// const { IpDeniedError } = require("express-ipfilter");
 
 // Route imports
 const logRoute = require("./routes/logRoute");
@@ -319,17 +319,17 @@ app.use((err, req, res, next) => {
       ? "An unexpected error occurred. Please try again later."
       : err.message;
 
-  if (err instanceof IpDeniedError) {
-    res.status(401); // Unauthorized
-    res.json({ error: "Access denied: IP address not authorized." });
-  } else {
+  // if (err instanceof IpDeniedError) {
+  //   res.status(401); // Unauthorized
+  //   res.json({ error: "Access denied: IP address not authorized." });
+  // } else {
     res.status(status).json({
       error: {
         status,
         message,
       },
     });
-  }
+  // }
 });
 
 async function bootstrap() {

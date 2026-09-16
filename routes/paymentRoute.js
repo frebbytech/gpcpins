@@ -8,7 +8,6 @@ const { rateLimit } = require("express-rate-limit");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
-const { IpFilter } = require("express-ipfilter");
 
 //functons
 const {
@@ -72,6 +71,7 @@ const {
   sendBrassicaMoney,
   getBrassicaBalance,
 } = require("./brassica/brasiccaMoney");
+const { ipFilter } = require("../middlewares/ipFilter");
 
 // ===============================
 // 1. Configuration & Constants
@@ -126,9 +126,8 @@ const ALLOWED_CATEGORIES = [
   "bus",
 ];
 
-const callbackIpFilter = IpFilter(clientWhitelist, {
-  mode: "allow", // 'allow' acts as a whitelist (blocks everything else)
-  log: true, // Set to true if you want to console.log blocked attempts
+const callbackIpFilter = ipFilter({
+  allowedIps: clientWhitelist,
 });
 
 const rlimit = rateLimit({
@@ -1483,8 +1482,8 @@ router.post(
 
       try {
         // if (isProduction) {
-          await sendBrassicaMoney(momoPayload);
-          paymentStatus = "pending";
+        await sendBrassicaMoney(momoPayload);
+        paymentStatus = "pending";
         // }
       } catch (error) {
         console.log(error);
@@ -2351,23 +2350,6 @@ router.post(
         queueMicrotask(() =>
           handlePostPaymentEvents(payment, newStatus, payload),
         );
-
-        // if (status === "SUCCESSFUL" || statusCode === "200") {
-        //   // Handle success
-        //   logger.info(`[Webhook] Transaction ${transactionId} SUCCEEDED.`);
-        // } else if (
-        //   status === "FAILED" ||
-        //   ["424", "412", "300"].includes(String(statusCode))
-        // ) {
-        //   // Handle failure — do NOT retry 424; it is terminal
-        //   logger.warn(
-        //     `[Webhook] Transaction ${transactionId} FAILED (code=${statusCode}).`,
-        //   );
-        // } else {
-        //   logger.info(
-        //     `[Webhook] Transaction ${transactionId} status=${status} — no action taken.`,
-        //   );
-        // }
       } catch (err) {
         if (trx) await trx.rollback();
         await redisClient.del(lockKey);
@@ -2380,8 +2362,7 @@ router.post(
   }),
 );
 
-// //@ Payment callback
-// router.post(
+
 //   "/callback/e",
 //   cors(corsOptions),
 //   rlimit,
@@ -2599,9 +2580,7 @@ router.put(
       );
     });
 
-    // const recipient = JSON.parse(transaction[0].recipient);
 
-    // const list = recipient.map(async (item) => {
     //   const transaction_reference = randomBytes(24).toString("hex");
     //   const info = {
     //     recipient: item?.recipient,
