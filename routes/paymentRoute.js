@@ -992,7 +992,6 @@ router.post(
 
     const { info, meter, amount, isWallet, token } = req.body;
 
-    //     console.log(req.body)
     // return res.status(400).json( "Meter not found");
     const userPhone =
       getInternationalMobileFormat(info?.phonenumber, false) ||
@@ -1019,7 +1018,6 @@ router.post(
       if (!lookupResponse?.meterId) {
         return res.status(400).json("Meter not found");
       }
-      // console.log(lookupResponse);
 
       prepaidMeterPayload = {
         ...lookupResponse,
@@ -1045,7 +1043,6 @@ router.post(
     const transaction_id = generateId(6);
     const transaction_reference = randomBytes(24).toString("hex");
     const asyncRequestId = uuidv4();
-    // const orderNo = randomBytes(20).toString("hex");
 
     const transx = await knex.transaction();
     if (isWallet) {
@@ -1112,13 +1109,12 @@ router.post(
       paymentStatus = "pending";
     }
 
-     await performPrepaidInquiry({
+    await performPrepaidInquiry({
       referenceId: accountReferenceId,
       meterSerial: meter,
       phoneNumber: userPhone,
       asyncRequestId,
     });
-    // console.log(inquiryResponse);
 
     providerResponse = {
       billRequest: {
@@ -1292,13 +1288,9 @@ router.post(
         return res.status(401).json("Wallet not found");
       }
 
- 
-
       const userPhone =
         getInternationalMobileFormat(phoneNumber, false) ||
         process.env.BRASSICA_CLIENT_PHONENUMBER;
-
-
 
       const momoPayload = {
         institutionCode: mobilePartner,
