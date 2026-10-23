@@ -194,16 +194,16 @@ router.get(
         districtId: paymentPayload?.paymentDetails?.serviceDistrictId,
       };
 
-      console.log(rechargePayload)
-
       const paymentResponse =
         await prepareBrassicaECollectPrepaidCharge(rechargePayload);
-        console.log(paymentResponse)
+      console.log(paymentResponse);
 
       if (
         paymentResponse?.message !== "Success" ||
         paymentResponse?.code !== 0
       ) {
+        console.log(paymentResponse);
+
         return res.status(422).json({ message: "Provider transaction failed" });
       }
 
@@ -290,6 +290,7 @@ router.get(
       });
     } catch (apiError) {
       logger.error("[ECGPay API Error]:", apiError);
+       console.log(apiError);
       return res.status(422).json({ message: "Provider transaction failed" });
     }
   }),

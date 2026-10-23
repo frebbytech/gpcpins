@@ -117,6 +117,7 @@ async function pmtPost(endpoint, body = {}, _retry = true) {
       },
     });
   } catch (err) {
+    console.log(err)
     if (err.code === "ECONNABORTED") {
       throw new AppError(
         "Brassica PMT request timed out.",

@@ -1095,19 +1095,19 @@ router.post(
         institutionCode: info?.provider,
         accountNumber: userPhone,
         accountName: info?.name || userName || "GPC Customer",
-        meterName: meter,
+        meterNumber: meter,
         amount: Number(amount).toFixed(2),
         transaction_Id: `prepaid-${transaction_id}`,
         debitNaration: "Purchase Prepaid Units",
       };
 
-      // try {
-      //   await send3PPBrassicaMoney(momoPayload);
-      // } catch (error) {
-      //   return res
-      //     .status(400)
-      //     .json("Error processing transaction.Please try again later!");
-      // }
+      try {
+        await send3PPBrassicaMoney(momoPayload);
+      } catch (error) {
+        return res
+          .status(400)
+          .json("Error processing transaction.Please try again later!");
+      }
 
       paymentStatus = "pending";
     }
@@ -1158,7 +1158,7 @@ router.post(
         provider: isWallet ? "wallet" : info?.provider,
         mode: isWallet ? "Wallet" : "Mobile Money",
         year: moment().year(),
-        status: "completed",
+        status: paymentStatus,
         externalTransactionId: null,
         partner: JSON.stringify(providerResponse),
         is_processed: false,
