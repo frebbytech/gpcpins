@@ -49,15 +49,31 @@ export const getMeterById = async (meterId) => {
     throw error.response.data;
   }
 };
+// export const getMeterByNumber = async (meterNumber, meterName) => {
+//   try {
+//     const res = await api({
+//       url: `/ecg/meter-info`,
+//       method: "POST",
+//       data: {
+//         accountNumber: meterNumber,
+//         name: meterName,
+//         accountCategory: "PREPAID",
+//       },
+//     });
+//     return res.data;
+//   } catch (error) {
+//     throw error.response.data;
+//   }
+// };
 export const getMeterByNumber = async (meterNumber, meterName) => {
   try {
     const res = await api({
-      url: `/billers/ecg/lookup`,
+      url: `/ecg/meter-info`,
       method: "POST",
       data: {
-        accountNumber: meterNumber,
+        meterNumber,
         name: meterName,
-        accountCategory: "PREPAID",
+        meterCategory: "prepaid",
       },
     });
     return res.data;

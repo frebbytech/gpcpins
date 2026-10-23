@@ -1,7 +1,6 @@
 const router = require("express").Router();
 const asyncHandler = require("express-async-handler");
 const _ = require("lodash");
-const { v4: uuidv4 } = require("uuid");
 const generateId = require("../config/generateId");
 
 //model
@@ -12,7 +11,7 @@ const knex = require("../db/knex");
 const verifyAdmin = require("../middlewares/verifyAdmin");
 const { verifyToken } = require("../middlewares/verifyToken");
 const { getMeter } = require("../services/brassica/token.manager");
-const { brassicaPost } = require("../services/brassicaClient");
+const { getMeterInfo } = require("../services/brassica/eCollectClient");
 
 router.get(
   "/",
@@ -185,23 +184,21 @@ router.post(
       return res.status(404).json("Meter already exist!.");
     }
 
-    const savedMeter = await getMeter(`meter:${newMeter?.number}`);
+    const savedMeter = await getMeter(newMeter?.number);
     if (savedMeter) {
       availableMeter = savedMeter;
     } else {
       try {
-        const transactionId = uuidv4();
-        const response = await brassicaPost("/billerAccountLookUp", {
-          transactionId,
-          accountNumber: newMeter?.number,
-          phoneNumber: process.env.BRASSICA_CLIENT_PHONENUMBER,
-          accountCategory: "PREPAID",
-          billerType: "ECG",
-        });
+     
+        logger.info(
+          `[ECG] MeterInfo meter=${newMeter?.number} cat=${"PREPAID"}`,
+        );
 
-        if (response?.status !== "Success" || response?.statusCode !== "200") {
-          return res.status(401).json("An error has occurred!.Meter not found");
-        }
+        const response = await getMeterInfo({
+          meterNumber: newMeter?.number,
+          meterCategory: "prepaid",
+          phoneNumber: process.env.BRASSICA_CLIENT_PHONENUMBER || "",
+        });
 
         availableMeter = response;
       } catch (error) {
@@ -211,23 +208,22 @@ router.post(
       }
     }
 
-
     const meterDetails = {
       id: generateId(),
       user_id: newMeter?.user_id,
-      number: newMeter?.number,
-      spn: "",
-      name: availableMeter?.accountDetails?.accountName,
-      type: availableMeter?.accountDetails?.accountType,
-      district: availableMeter?.accountDetails?.serviceDistrictId,
-      address: availableMeter?.accountDetails?.accountAddress,
+      number: availableMeter?.meterNumber,
+      spn: availableMeter?.spn,
+      name: availableMeter?.accountName,
+      type: "prepaid",
+      district: availableMeter?.serviceDistrictId,
+      address: availableMeter?.accountAddress,
       geo_code: "",
-      account_number: newMeter?.number,
-      reference_id: availableMeter?.accountDetails?.accountReferenceId,
-      region: availableMeter?.accountDetails?.serviceRegionId,
-      provider_name: availableMeter?.accountDetails?.serviceProviderName,
-      alt_account_number: availableMeter?.accountDetails?.altAccountNumber,
-      look_up_id: availableMeter?.accountLookUpId,
+      account_number: availableMeter?.altAccountNumber,
+      reference_id: availableMeter?.accountReferenceId,
+      region: availableMeter?.serviceRegionId,
+      provider_name: availableMeter?.serviceProviderName,
+      alt_account_number: availableMeter?.altAccountNumber,
+      look_up_id: availableMeter?.meterId,
     };
 
     const meter = await knex("meters").insert(meterDetails);

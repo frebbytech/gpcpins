@@ -19,6 +19,9 @@ const sendElectricityMail = require("../config/ecgMail");
 const { sendSMS } = require("../config/sms");
 const { sendPrepaidEmail } = require("../config/mail");
 const currencyFormatter = require("../config/currencyFormatter");
+const {
+  prepareBrassicaECollectPrepaidCharge,
+} = require("./brassica/brasiccaMoney");
 
 const limit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
@@ -178,21 +181,33 @@ router.get(
     logger.info(
       `[ECGPay] meter=${paymentPayload?.billRequest?.accountNumber} category=PREPAID amount=${paymentPayload?.paymentDetails?.amount} by=${paymentPayload?.paymentDetails?.accountName}`,
     );
-
+    paymentPayload;
     try {
-      const paymentResponse = await brassicaPost(
-        "/billerPayment",
-        paymentPayload,
-      );
+      const rechargePayload = {
+        asyncRequestId: paymentPayload?.billRequest?.asyncRequestId,
+        amount: paymentPayload?.paymentDetails?.amount,
+        meterId: paymentPayload?.paymentDetails?.accountReferenceId,
+        accountNumber: paymentPayload?.paymentDetails?.altAccountNumber,
+        mobileNumber: paymentPayload?.billRequest?.phoneNumber,
+        meterNumber: paymentPayload?.billRequest?.accountNumber,
+        regionId: paymentPayload?.paymentDetails?.serviceRegionId,
+        districtId: paymentPayload?.paymentDetails?.serviceDistrictId,
+      };
+
+      console.log(rechargePayload)
+
+      const paymentResponse =
+        await prepareBrassicaECollectPrepaidCharge(rechargePayload);
+        console.log(paymentResponse)
 
       if (
-        paymentResponse?.status !== "Success" ||
-        paymentResponse?.statusCode !== "200"
+        paymentResponse?.message !== "Success" ||
+        paymentResponse?.code !== 0
       ) {
         return res.status(422).json({ message: "Provider transaction failed" });
       }
 
-      const responseDetails = paymentResponse?.paymentResponseDetails || {};
+      const responseDetails = paymentResponse || {};
 
       // 7. Atomically finalize database status using a transaction block
       let transactionDetails;
@@ -203,7 +218,7 @@ router.get(
           .update({
             info: JSON.stringify({
               domain: "Prepaid",
-              downloadLink: responseDetails?.receiptUrl,
+              downloadLink: responseDetails?.receiptUrl || "",
               ...responseDetails,
             }),
           })
@@ -225,9 +240,11 @@ router.get(
             user_id: payment?.user_id,
             type: "prepaid",
             title: "Prepaid Units",
-            body: `Payment made for prepaid meter: ${paymentPayload?.billRequest?.accountNumber} is completed. Recharge Token: ${rechargeToken || "N/A"}.`,
-            link: responseDetails?.receiptUrl,
-            info: JSON.stringify({ downloadLink: responseDetails?.receiptUrl }),
+            body: `Payment made for prepaid meter: ${paymentPayload?.meterId} is completed. Recharge Token: ${rechargeToken || "N/A"}.`,
+            link: responseDetails?.receiptUrl || "",
+            info: JSON.stringify({
+              downloadLink: responseDetails?.receiptUrl || "",
+            }),
           });
         }
       });
@@ -252,7 +269,7 @@ router.get(
       setImmediate(async () => {
         try {
           const transaction = {
-            transactionId: paymentPayload?.billRequest?.transactionId,
+            transactionId: responseDetails?.transactionId,
             number: paymentPayload?.billRequest?.accountNumber,
             name: paymentPayload?.paymentDetails?.accountName,
             amount: responseDetails?.amount,
@@ -314,7 +331,7 @@ router.get(
       address: transaction.address,
       geoCode: transaction.geoCode,
       accountNumber: transaction.accountNumber,
-        paymentBy: partner?.paymentDetails?.paymentBy,
+      paymentBy: partner?.paymentDetails?.paymentBy,
     });
   }),
 );

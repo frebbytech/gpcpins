@@ -38,6 +38,7 @@ const complaintRoute = require("./routes/complaintRoute");
 //brasicca
 const billerRoute = require("./routes/brassica/billers.js");
 const billerPaymentsRoute = require("./routes/brassica/payments.js");
+const ecgRoute = require("./routes/brassica/ecg.js");
 
 //
 const {
@@ -49,6 +50,9 @@ const socketAuth = require("./middlewares/socketAuth");
 const { initSocketServer, getIO } = require("./config/socket");
 const { initializeSchedulers } = require("./queues/schedulers.js");
 const logger = require("./utils/logger.js");
+const client = require("./config/brassica.redisClient.js");
+const pmtTokenMgr = require("./services/brassica/pmtTokenManager.js");
+const { paymentLimiter } = require("./middlewares/rateLimiter.js");
 
 // server.js
 require("./config/cronMessages.js");
@@ -96,6 +100,8 @@ const limit = rateLimit({
   max: 20, // 5 requests per windowMs
   message: "Too many requests!. please try again later.",
 });
+
+
 
 // Apply rate limiting to all requests
 app.use(limiter);
@@ -241,6 +247,8 @@ app.use(
 app.use("/", express.static(path.join(__dirname, "public"), staticOptions));
 
 // Routes
+
+app.use("/api/gabs/v1/ecg/pay", paymentLimiter);
 app.use("/api/gabs/v1/roles", rolesRoute);
 app.use("/api/gabs/v1/users", userRoute);
 app.use("/api/gabs/v1/wallet", walletRoute);
@@ -262,6 +270,7 @@ app.use("/api/gabs/v1/messages", messageRoute);
 app.use("/api/gabs/v1/broadcast-messages", verifyToken, broadcastMessageRoute);
 app.use("/api/gabs/v1/billers", billerRoute);
 app.use("/api/gabs/v1/biller/payments", billerPaymentsRoute);
+app.use("/api/gabs/v1/ecg", ecgRoute);
 
 // Health check endpoint
 app.get("/api/gabs/v1/health", (req, res) => {
@@ -323,17 +332,37 @@ app.use((err, req, res, next) => {
   //   res.status(401); // Unauthorized
   //   res.json({ error: "Access denied: IP address not authorized." });
   // } else {
-    res.status(status).json({
-      error: {
-        status,
-        message,
-      },
-    });
+  res.status(status).json({
+    error: {
+      status,
+      message,
+    },
+  });
   // }
 });
 
 async function bootstrap() {
   try {
+    // ── Connect to Redis ───────────────────────────────────────────────────────
+    // lazyConnect:true means the socket isn't opened until here.
+    // A failed connect is logged but does NOT abort startup — the token manager
+    // falls back to its local in-process cache automatically.
+    try {
+      await client.connect();
+      logger.info("[Bootstrap] Redis connected.");
+    } catch (err) {
+      logger.warn(
+        `[Bootstrap] Redis unavailable at startup — falling back to local token cache. (${err.message})`,
+      );
+    }
+
+    // ── Pre-fetch Brassica PMT token ───────────────────────────────────────────
+    // Validates credentials before the server accepts traffic.
+    // On success the token is in Redis, shared with every instance in the fleet.
+    logger.info("[Bootstrap] Authenticating with Brassica Payment Processor…");
+    await pmtTokenMgr.getToken();
+    logger.info("[Bootstrap] Brassica PMT token obtained and cached.");
+
     const { io, pubClient } = await initSocketServer(server);
 
     /*
@@ -446,72 +475,6 @@ async function bootstrap() {
       });
     });
 
-    // io.on("connection", async (socket) => {
-    //   if (NODE_ENV === "development") {
-    //     logger.info(`Socket Connected:${socket.id}`);
-    //   }
-
-    //   if (socket.user?.sub) {
-    //     const userRoom = `user:${socket.user.sub}`;
-    //     const paymentRoom = `payment:${socket.user.sub}`;
-
-    //     await socket.join(userRoom);
-    //     await socket.join(paymentRoom);
-
-    //     if (NODE_ENV === "development") {
-    //       logger.info(`User joined room: ${userRoom}`);
-    //       logger.info(`User joined payment room: ${paymentRoom}`);
-    //     }
-
-    //     await pubClient.set(`socket:${socket?.user?.sub}`, socket.id, {
-    //       EX: 60 * 60 * 24,
-    //     });
-    //   }
-
-    //   socket.on("join-user-room", async (userId) => {
-    //     if (!userId || typeof userId !== "string") return;
-    //     const userRoom = `user:${userId}`;
-    //     await socket.join(userRoom);
-
-    //     socket.emit("user-room-joined", {
-    //       room: userRoom,
-    //     });
-    //   });
-
-    //   socket.on("join-payment-room", async (txRef) => {
-    //     logger.info(txRef);
-
-    //     if (!txRef || typeof txRef !== "string") return;
-    //     const paymentRoom = `payment:${txRef}`;
-
-    //     await socket.join(paymentRoom);
-
-    //     logger.info(`User payment room: ${paymentRoom}`);
-
-    //     socket.emit("payment-room-joined", {
-    //       room: paymentRoom,
-    //     });
-    //   });
-
-    //   socket.on("leave-user-room", async (userId) => {
-    //     const userRoom = `user:${userId}`;
-
-    //     await socket.leave(userRoom);
-    //   });
-
-    //   socket.on("leave-payment-room", async (txRef) => {
-    //     const paymentRoom = `payment:${txRef}`;
-
-    //     await socket.leave(paymentRoom);
-    //   });
-
-    //   socket.on("disconnect", async () => {
-    //     if (socket.user?.sub) {
-    //       await pubClient.del(`socket:${socket.user.sub}`);
-    //     }
-    //   });
-    // });
-
     //initialise queues
     await initializeSchedulers();
 
@@ -523,8 +486,8 @@ async function bootstrap() {
     // Set timeout
     serverApp.setTimeout(120000); // 2 minutes
 
-    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
     process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
     // Process event handlers for graceful shutdown
     process.on("uncaughtException", (err) => {
@@ -550,8 +513,9 @@ async function bootstrap() {
         await knex.destroy();
         logger.info("Database connection closed.");
 
-        server.close(() => {
-          logger.info("HTTP server closed.");
+        server.close(async () => {
+          logger.info("[Shutdown] HTTP server closed.");
+          await pmtTokenMgr.disconnect(); // closes the Redis connection cleanly
           process.exit(0);
         });
 
