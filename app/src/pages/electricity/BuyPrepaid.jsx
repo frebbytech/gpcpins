@@ -280,19 +280,19 @@ function BuyPrepaid() {
                   //validate amount before proceeding
                   if (!isValid) {
                     //validate amount here
-                    if (amount < 1) {
-                      customDispatch(
-                        globalAlertType(
-                          "error",
-                          "Minimum amount you can buy is GHS 1.",
-                        ),
-                      );
-                      setError("amount", {
-                        type: "manual",
-                        message: "Minimum amount you can buy is GHS 1.",
-                      });
-                      return;
-                    }
+                    // if (amount < 1) {
+                    //   customDispatch(
+                    //     globalAlertType(
+                    //       "error",
+                    //       "Minimum amount you can buy is GHS 1.",
+                    //     ),
+                    //   );
+                    //   setError("amount", {
+                    //     type: "manual",
+                    //     message: "Minimum amount you can buy is GHS 1.",
+                    //   });
+                    //   return;
+                    // }
                   }
 
                   if (

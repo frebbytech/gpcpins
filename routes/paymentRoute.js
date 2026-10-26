@@ -75,6 +75,7 @@ const {
 } = require("./brassica/brasiccaMoney");
 const { ipFilter } = require("../middlewares/ipFilter");
 const { getMeterInfo } = require("../services/brassica/eCollectClient");
+const { amountChargeValue } = require("../utils/helper");
 
 // ===============================
 // 1. Configuration & Constants
@@ -996,7 +997,7 @@ router.post(
       process.env.BRASSICA_CLIENT_PHONENUMBER;
 
     // ---------------- CREATE PAYMENT ----------------
-    let paymentStatus ;
+    let paymentStatus;
     let providerResponse;
 
     // 1. Fetch or Lookup Meter Details BEFORE opening DB transactions
@@ -1091,7 +1092,7 @@ router.post(
         accountNumber: userPhone,
         accountName: info?.name || userName || "GPC Customer",
         meterNumber: meter,
-        amount: Number(amount).toFixed(2),
+        amount: amountChargeValue(amount),
         transaction_Id: `prepaid-${transaction_id}`,
         debitNaration: "Purchase Prepaid Units",
       };
@@ -1125,7 +1126,7 @@ router.post(
         phoneNumber: userPhone,
       },
       paymentDetails: {
-        amount: amount,
+        amount: amountChargeValue(amount),
         accountLookUpId,
         serviceDistrictId,
         serviceRegionId,
@@ -1164,7 +1165,7 @@ router.post(
         payment_id: paymentId,
         meter_id: meter,
         charges: 0,
-        topup: amount,
+        topup: amountChargeValue(amount),
         email: info?.email,
         phonenumber: info?.phonenumber,
       });
@@ -1294,7 +1295,7 @@ router.post(
         institutionCode: mobilePartner,
         accountNumber: userPhone,
         accountName: name || "GPC Customer",
-        amount: Number(amount)?.toFixed(2).toString(),
+        amount: amountChargeValue(amount),
         transaction_Id: `wallet-${paymentId}`,
         debitNaration: "Top up GPC Wallet Amount",
       };
@@ -1317,7 +1318,7 @@ router.post(
         user_id: userId,
         reference,
         service: "wallet",
-        amount: amount,
+        amount: amountChargeValue(amount),
         year: moment().year(),
         provider: mobilePartner,
         mode: "Mobile Money",
@@ -1339,7 +1340,7 @@ router.post(
         type: "credit",
         comment: `wallet top-up`,
         phonenumber: userPhone,
-        amount: amount,
+        amount: amountChargeValue(amount),
         status: isProduction ? paymentStatus : "completed",
         reference,
       });
@@ -1450,7 +1451,7 @@ router.post(
           type: "debit",
           comment: "Airtime purchase ",
           attachment: null,
-          amount: amount,
+          amount: amountChargeValue(amount),
           status: "completed",
           reference,
         });
@@ -1463,7 +1464,7 @@ router.post(
           name: name || "GPC Customer",
           email: email,
           phonenumber,
-          amount: Number(amount).toFixed(2),
+          amount: amountChargeValue(amount),
           provider,
           transaction_reference: reference,
         };
@@ -1486,7 +1487,7 @@ router.post(
         user_id: userId,
         reference: reference,
         service,
-        amount: amount,
+        amount: amountChargeValue(amount),
         provider: provider,
         mode: isWallet ? "Wallet" : "Mobile Money",
         year: moment().year(),
@@ -1504,7 +1505,7 @@ router.post(
         domain: service,
         info: JSON.stringify({
           phonenumber,
-          amount,
+          amount: amountChargeValue(amount),
           pricing: pricing ?? [],
           domain: service,
         }),
@@ -1538,7 +1539,7 @@ router.post(
             await emitPaymentSuccess({
               userId: userId,
               txRef: phonenumber || reference,
-              amount: amount,
+              amount: amountChargeValue(amount),
               transaction: {
                 id: transactionId || paymentId,
                 paymentReference: reference,
@@ -1546,7 +1547,7 @@ router.post(
                 email,
                 phonenumber,
                 paymentMode: "Wallet",
-                amount: amount,
+                amount: amountChargeValue(amount),
                 createdAt: new Date().toISOString(),
               },
             });
@@ -1657,7 +1658,7 @@ router.post(
           type: "debit",
           comment: "Data Bundle purchase",
           attachment: null,
-          amount: amount,
+          amount: amountChargeValue(amount),
           status: "completed",
           reference,
         });
@@ -1671,7 +1672,7 @@ router.post(
           name: name || "GPC Customer",
           email: email,
           phonenumber,
-          amount: Number(amount).toFixed(2),
+          amount: amountChargeValue(amount),
           provider,
           transaction_reference: reference,
         };
@@ -1694,7 +1695,7 @@ router.post(
         user_id: userId,
         reference: reference,
         service,
-        amount: amount,
+        amount: amountChargeValue(amount),
         provider: provider,
         mode: isWallet ? "Wallet" : "Mobile Money",
         year: moment().year(),
@@ -1744,7 +1745,7 @@ router.post(
             await emitPaymentSuccess({
               userId: userId,
               txRef: phonenumber || reference,
-              amount: amount,
+              amount: amountChargeValue(amount),
               transaction: {
                 id: transactionId || paymentId,
                 paymentReference: reference,
@@ -2184,7 +2185,6 @@ router.post(
   }),
 );
 
-//   "/callback/e",
 //   cors(corsOptions),
 //   rlimit,
 //   asyncHandler(async (req, res) => {
@@ -2400,61 +2400,6 @@ router.put(
         transaction?.phonenumber,
       );
     });
-
-    //   const transaction_reference = randomBytes(24).toString("hex");
-    //   const info = {
-    //     recipient: item?.recipient,
-    //     amount: item?.price,
-    //     network:
-    //       item?.type === "MTN"
-    //         ? 4
-    //         : item?.type === "Vodafone"
-    //           ? 6
-    //           : item?.type === "AirtelTigo"
-    //             ? 1
-    //             : 0,
-    //     transaction_reference,
-    //   };
-
-    //   return sendAirtime(info);
-    // });
-
-    //     Promise.all(list)
-    //       .then(async (data) => {
-    //         await knex("airtime_transactions").where("id", id).update({
-    //           is_processed: 1,
-    //           issuer: name
-    //         });
-
-    //         await knex("user_notifications").insert({
-    //           id: generateId(),
-    //           user_id: userID,
-    //           type: "airtime",
-    //           title: "Airtime Transfer",
-    //           message: `You have successfully recharged ${airtimeInfo.recipient} with GHS ${airtimeInfo.amount} of airtime, you were charged GHS ${airtimeInfo.amount}`,
-    //         });
-
-    //         if (process.env.NODE_ENV === 'production') {
-
-    //           const balance = await accountBalance();
-    //           if (Number(balance) < 1000) {
-    //             const body = `
-    // Your one-4-all top up account balance is running low.Your remaining balance is GHS ${balance}.
-    // Please recharge to avoid any inconveniences.
-    // Thank you.
-    //           `;
-    //             await sendEMail(
-    //               process.env.MAIL_CLIENT_USER,
-    //               mailTextShell(`<p>${body}</p>`),
-    //               "LOW TOP UP ACCOUNT BALANCE"
-    //             );
-    //           }
-
-    //         }
-    //       })
-    //       .catch((error) => {
-    //         return res.status(500).json("Transaction Failed!");
-    //       });
   }),
 );
 

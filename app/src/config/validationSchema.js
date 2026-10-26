@@ -503,7 +503,7 @@ export const prepaidValidationSchema = () => {
 export const prepaidPaymentValidationSchema = object().shape({
   amount: number()
     .required("Required")
-    .min(1, "Minimum amount you can buy is GHS 1.0"),
+    .min(0.01, "Minimum amount you can buy is GHS 1.0"),
 });
 
 export const prepaidMeterValidationSchema = object().shape({

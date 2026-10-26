@@ -52,7 +52,15 @@ function getExpiryTimeByRoleMs(userRole) {
   };
 }
 
+function amountChargeValue(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new TypeError(`Invalid amount: ${value}`);
+  return Number(n.toFixed(2));
+}
+
 module.exports = {
   getExpiryTimeByRoleMs,
   getExpiryTimeByRole,
+  amountChargeValue
 };

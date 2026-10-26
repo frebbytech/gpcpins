@@ -4,6 +4,7 @@ const logger = require("../../utils/logger");
 const config = require("../../config/brassica.config");
 const { pmtPost } = require("../../services/brassica/pmtClient");
 const { ecPost } = require("../../services/brassica/eCollectClient");
+const { amountChargeValue } = require("../../utils/helper");
 
 function requireFields(obj, fields) {
   const missing = fields.filter(
@@ -13,12 +14,6 @@ function requireFields(obj, fields) {
     throw new TypeError(`Missing required field(s): ${missing.join(", ")}`);
 }
 
-function toChargeValue(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0)
-    throw new TypeError(`Invalid amount: ${value}`);
-  return Number(n.toFixed(2));
-}
 
 const chargeMeterBlock = (m) => ({
   referenceId: m.meterId,
@@ -51,7 +46,7 @@ function chargeBody(p, key) {
       merchant: config.brassicaPmt.merchantCode || "ECG",
       request: { asyncRequestId },
       charge: {
-        chargeValue: toChargeValue(p.amount),
+        chargeValue: amountChargeValue(p.amount),
         callbackURL,
         paymentReference: asyncRequestId, // doc: same as asyncRequestId
       },
