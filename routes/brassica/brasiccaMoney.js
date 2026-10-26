@@ -56,15 +56,14 @@ function chargeBody(p, key) {
         paymentReference: asyncRequestId, // doc: same as asyncRequestId
       },
       paymentInstrument: {
-        paymentMethod: "Quota",
-        bank: "",
-        chequeNumber: "",
+        paymentMethod: "Mobile",
+        mno: "",
+        msisdn: mobileNumber,
       },
       [key]: chargeMeterBlock(p),
     },
   };
 }
-
 
 function interpret(data) {
   const code = data?.status?.code;
@@ -75,7 +74,6 @@ function interpret(data) {
   else if (code === -3) outcome = "UNKNOWN";
   return { outcome, code, message };
 }
-
 
 async function send3PPBrassicaMoney(payload) {
   try {
@@ -250,7 +248,12 @@ async function getBrassicaTransactionStatus(transactionId, transactionType) {
  * @param {string} [params.asyncRequestId] - Optional unique request tracking identifier.
  * @returns {Promise<Object>} The standard response containing success status, ID, and raw upstream data.
  */
-async function performPrepaidInquiry({ referenceId, meterSerial, phoneNumber, asyncRequestId }) {
+async function performPrepaidInquiry({
+  referenceId,
+  meterSerial,
+  phoneNumber,
+  asyncRequestId,
+}) {
   // Fall back to generating a UUID if one wasn't explicitly passed down (e.g. from background tasks)
   const requestId = asyncRequestId || uuidv4();
 
@@ -260,20 +263,19 @@ async function performPrepaidInquiry({ referenceId, meterSerial, phoneNumber, as
   const data = await ecPost("/ECGPrepaidOnlineInquiry", {
     merchant: config.eCollect.merchant,
     request: { asyncRequestId: requestId },
-    meter: { 
-      referenceId, 
-      meterSerial, 
-      mobileNumber: phoneNumber 
+    meter: {
+      referenceId,
+      meterSerial,
+      mobileNumber: phoneNumber,
     },
   });
 
-  return { 
-    success: true, 
-    asyncRequestId: requestId, 
-    data 
+  return {
+    success: true,
+    asyncRequestId: requestId,
+    data,
   };
 }
-
 
 async function getBrassicaECollectPrepaidChargeStatus(
   transactionId,
@@ -303,7 +305,6 @@ async function prepareBrassicaECollectPrepaidCharge(requestBody) {
 
   const data = await ecPost("/ECGPrepaidOnlineCharge1", body);
 
-
   return {
     asyncRequestId,
     paymentReference: asyncRequestId,
@@ -322,5 +323,5 @@ module.exports = {
   getBrassica3PPTransactionStatus,
   getBrassicaECollectPrepaidChargeStatus,
   prepareBrassicaECollectPrepaidCharge,
-  performPrepaidInquiry
+  performPrepaidInquiry,
 };

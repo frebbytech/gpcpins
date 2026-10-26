@@ -77,8 +77,8 @@ router.get(
 
     const vouchers = await knex("vouchers")
       .select(
-        "vouchers._id",
-        "categories._id as categoryId",
+        "vouchers.id",
+        "categories.id as categoryId",
         "categories.category",
         "categories.voucherType",
         "vouchers.type",
@@ -88,7 +88,7 @@ router.get(
         "vouchers.createdAt",
         "vouchers.updatedAt",
       )
-      .join("categories", "vouchers.category", "categories._id")
+      .join("categories", "vouchers.category", "categories.id")
       .where("vouchers.category", category);
 
     res.status(200).json(vouchers);
@@ -136,7 +136,7 @@ router.post(
       //check if ticket has already been synced
       const unSyncedTickets = tickets?.map(async (unSyncedTicket) => {
         const {
-          _id,
+          id,
           ticket,
           verifier,
           voucher,
@@ -160,7 +160,7 @@ router.post(
         } else {
           //check if voucher exists in the system
           return {
-            _id,
+            id,
             ticket,
             verifier,
             voucher,
@@ -187,11 +187,11 @@ router.post(
           .update({
             status: "used",
           })
-          .where("_id", "IN", vouchers);
+          .where("id", "IN", vouchers);
 
         const scannedTickets = await transx("scanned_tickets")
           .select(
-            "_id",
+            "id",
             "ticket",
             "verifier",
             "voucher",
@@ -696,7 +696,7 @@ router.get(
       const scannedTicketByVerifier = await knex(
         "scanned_tickets_vouchers_view",
       )
-        .select("_id", "createdAt", "type", "pin", "serial", "voucherType")
+        .select("id", "createdAt", "type", "pin", "serial", "voucherType")
         .where({ ticketId: id, verifierId: verifierId })
         .orderBy("createdAt", "desc");
 
@@ -781,8 +781,8 @@ router.post(
     try {
       //find transaction with  id
       const transaction = await transx("voucher_transactions")
-        .select("_id", "email", "phonenumber", "vouchers", "info")
-        .where("_id", id)
+        .select("id", "email", "phonenumber", "vouchers", "info")
+        .where("id", id)
         .limit(1)
         .first();
 
@@ -802,10 +802,10 @@ router.post(
         .update({
           status: "used",
         })
-        .where("_id", ticket);
+        .where("id", ticket);
 
       await transx("scanned_tickets").insert({
-        _id: generateId(6),
+        id: generateId(6),
         ticket: ticketID,
         verifier: userID,
         voucher: ticket,
@@ -846,11 +846,11 @@ router.put(
   verifyToken,
   verifyScanner,
   asyncHandler(async (req, res) => {
-    const { id: _id } = req.user;
+    const { id: id } = req.user;
     const { id, active } = req.body;
 
     const updatedUser = await knex("tickets")
-      .where("_id", id)
+      .where("id", id)
       .update({ active: active });
 
     if (updatedUser !== 1) {
@@ -859,8 +859,8 @@ router.put(
 
     //logs
     await knex("activity_logs").insert({
-      _id: generateId(10),
-      user_d: _id,
+      id: generateId(10),
+      user_d: id,
       title: `${
         Boolean(active) === true ? "Activated a ticket!" : "Disabled a ticket!"
       }`,
