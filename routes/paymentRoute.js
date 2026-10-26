@@ -1303,7 +1303,7 @@ router.post(
 
       try {
         // if (isProduction) {
-        await send3PPBrassicaMoney(momoPayload);
+        await sendBrassicaMoney(momoPayload);
         paymentStatus = "pending";
         // }
       } catch (error) {
