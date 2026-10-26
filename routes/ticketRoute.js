@@ -250,9 +250,8 @@ router.get(
   asyncHandler(async (req, res) => {
     const user = req.user;
     // console.log(user)
-    
-    const { sort, startDate, endDate ,verifier} = req.query;
 
+    const { sort, startDate, endDate, verifier } = req.query;
 
     let scannedTickets = [];
 
@@ -264,12 +263,11 @@ router.get(
     } else {
       if (user?.isAdmin) {
         // GET ALL SCANNED TICKETS
-        scannedTickets = await knex("vw_scanned_ticket_voucher_verifier_view").select(
-          "*",
-        );
+        scannedTickets = await knex(
+          "vw_scanned_ticket_voucher_verifier_view",
+        ).select("*");
       }
     }
-
 
     let modifiedTransaction = [];
 
@@ -526,7 +524,6 @@ router.get(
   }),
 );
 
-
 router.get(
   "/:id",
   verifyToken,
@@ -682,8 +679,6 @@ router.get(
     });
   }),
 );
-
-
 
 router.get(
   "/:id/scanned_tickets/verifier/:verifierId",
@@ -846,7 +841,7 @@ router.put(
   verifyToken,
   verifyScanner,
   asyncHandler(async (req, res) => {
-    const { id: id } = req.user;
+    const { id: userID } = req.user;
     const { id, active } = req.body;
 
     const updatedUser = await knex("tickets")
@@ -860,7 +855,7 @@ router.put(
     //logs
     await knex("activity_logs").insert({
       id: generateId(10),
-      user_d: id,
+      user_id: userID,
       title: `${
         Boolean(active) === true ? "Activated a ticket!" : "Disabled a ticket!"
       }`,
