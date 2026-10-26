@@ -11,7 +11,7 @@
  */
 
 const express = require("express");
-const { body, oneOf } = require("express-validator");
+const { body } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
 
 

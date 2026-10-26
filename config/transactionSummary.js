@@ -324,20 +324,20 @@ function getTransactionsByMonth(vouchersTransaction, ecgTransaction) {
   };
 }
 function getTransactionsArrayByMonth(data) {
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
+  // const months = [
+  //   "January",
+  //   "February",
+  //   "March",
+  //   "April",
+  //   "May",
+  //   "June",
+  //   "July",
+  //   "August",
+  //   "September",
+  //   "October",
+  //   "November",
+  //   "December",
+  // ];
 
   const initData = [
     { createdAt: "January", amount: 0 },

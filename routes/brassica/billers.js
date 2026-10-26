@@ -42,7 +42,7 @@ router.post(
     body("billerType").notEmpty().withMessage("billerType is required."),
   ],
   validate,
-  asyncHandler(async (req, res, next) => {
+  asyncHandler(async (req, res) => {
     try {
       const { accountNumber, phoneNumber, accountCategory, billerType } =
         req.body;
@@ -112,7 +112,7 @@ router.post(
       .isLength({ max: 100 }),
   ],
   validate,
-  asyncHandler(async (req, res, next) => {
+  asyncHandler(async (req, res) => {
     try {
       const { billRequest, paymentDetails } = req.body;
 
@@ -226,7 +226,7 @@ router.post(
   "/ecg/pay",
   billerPaymentSchema,
   validate,
-  asyncHandler(async (req, res, next) => {
+  asyncHandler(async (req, res) => {
     try {
       const {
         accountNumber,

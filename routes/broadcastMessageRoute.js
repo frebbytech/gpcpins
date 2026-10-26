@@ -14,6 +14,7 @@ const knex = require("../db/knex");
 const { isValidUUID2 } = require("../config/validation");
 const generateId = require("../config/generateId");
 const { verifyToken } = require("../middlewares/verifyToken");
+const logger = require("../utils/logger");
 
 router.get(
   "/",
@@ -90,7 +91,7 @@ router.post(
       });
 
       if (!insertedMessage) {
-        console.error("Transaction failed:", error);
+        console.error("Transaction failed:", "Failed to insert broadcast message.");
         await transx.rollback();
         return res.status(400).json("Message Failed. An error has occurred.");
       }
@@ -109,6 +110,7 @@ router.post(
       res.status(201).json("Message processing started!");
     } catch (error) {
       await transx.rollback();
+      logger.error("Message failed:", {cause: error.message, stack: error.stack});
       console.error("Transaction failed:", error);
       return res.status(500).json("Message Failed. An error has occurred.");
     }
@@ -160,7 +162,7 @@ router.post(
         }
       }
     } catch (bgError) {
-      console.error("Background delivery failed:", bgError);
+      logger.error("Background delivery failed:", {cause: bgError.message, stack: bgError.stack});
       // Soft-update failure without crashing the active client response
       await knex("broadcast_messages")
         .where("id", id)
@@ -274,6 +276,7 @@ router.put(
         .update({ isDelivered: true });
       return res.status(201).json("Message sent!!!");
     } catch (error) {
+      console.error("Message sending failed:", error);
       return res.status(404).json("Message Failed. An error has occurred.");
     }
   }),

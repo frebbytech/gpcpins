@@ -12,7 +12,7 @@ const P = require("pino");
 
 // Destructure socket management utilities from the local local socket module.
 const { getSocket, setSocket, removeSocket } = require("./whatsapp.socket.js");
-const { saveQr } = require("./whatsapp.auth.js");
+// const { saveQr } = require("./whatsapp.auth.js");
 
 /**
  * Service class handling WhatsApp connection life cycles and events.
@@ -69,10 +69,10 @@ class WhatsAppService {
       if (qr) {
         console.log("QR:", qr);
 
-        QRCode.toString(qr, { type: "terminal" }, (err, url) => {
-          console.log(url);
-        });
-        await saveQr(sessionId, qr);
+        // QRCode.toString(qr, { type: "terminal" }, (err, url) => {
+        //   console.log(url);
+        // });
+        // await saveQr(sessionId, qr);
       }
 
       // Handle connection closure cleanup and reconnection logic

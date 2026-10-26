@@ -1,6 +1,6 @@
 // workers/message.worker.js
 const { Worker } = require("bullmq");
-const redisClient = require("../config/redisClient");
+// const redisClient = require("../config/redisClient");
 const { sendText } = require("../services/message.sender");
 const { redisConnectionOptions } = require("../config/configurations");
 

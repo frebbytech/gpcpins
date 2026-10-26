@@ -7,7 +7,7 @@ const multer = require("multer");
 const { storeOTP, verifyOTP } = require("../services/otp.services");
 const { rateLimit } = require("express-rate-limit");
 
-const cron = require("node-cron");
+// const cron = require("node-cron");
 
 const { verifyToken } = require("../middlewares/verifyToken");
 const knex = require("../db/knex");
@@ -15,12 +15,12 @@ const { calculateTimeDifference } = require("../config/timeHelper");
 const currencyFormatter = require("../config/currencyFormatter");
 const { sendOTPSMS, sendSMS } = require("../config/sms");
 const sendEMail = require("../config/sendEmail");
-const { mailTextShell } = require("../config/mailText");
+// const { mailTextShell } = require("../config/mailText");
 const { otpGen } = require("otp-gen-agent");
 const generateId = require("../config/generateId");
 const verifyAdmin = require("../middlewares/verifyAdmin");
 const { uploadAttachment } = require("../config/uploadFile");
-const { pinSchema, pinResetSchema } = require("../utils/validationSchema");
+const {  pinResetSchema } = require("../utils/validationSchema");
 const { validate } = require("../middlewares/validators");
 
 const Storage = multer.diskStorage({

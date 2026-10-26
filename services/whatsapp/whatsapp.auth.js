@@ -17,7 +17,7 @@ async function saveQr(
   sessionId,
   qr
 ) {
-  await redis.set(
+  await redisClient.set(
     `wa:qr:${sessionId}`,
     qr,
     "EX",

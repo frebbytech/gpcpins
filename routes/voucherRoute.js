@@ -108,7 +108,6 @@ router.get(
       new: groupedStatus?.new?.length ?? 0,
       sold: groupedStatus?.sold?.length ?? 0,
       reserved: groupedStatus?.reserved?.length ?? 0,
-      sold: groupedStatus?.sold?.length ?? 0,
       used: groupedStatus?.used?.length ?? 0,
       expired: expired?.length ?? 0,
     });

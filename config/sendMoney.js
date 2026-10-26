@@ -35,7 +35,7 @@ async function sendMoney(info, type) {
     return {
       ResponseCode: "0000",
       Data: {
-        ref: (transaction_reference = randomBytes(24).toString("hex")),
+        ref: info?.transaction_reference || randomBytes(24).toString("hex"),
       },
     };
   }
@@ -61,8 +61,9 @@ async function sendMoneyToCustomer(info) {
             ? 0.1
             : Number(info?.amount),
           // Amount: info?.amount,
-          PrimaryCallbackUrl: `${process.env.REFUND_CALLBACK_URL
-            }/${info?.category}/${info?.transactionId}?uid=${info?.refunder}`,
+          PrimaryCallbackUrl: `${
+            process.env.REFUND_CALLBACK_URL
+          }/${info?.category}/${info?.transactionId}?uid=${info?.refunder}`,
           Description: info?.category,
           ClientReference: info?.transaction_reference,
         },
@@ -74,19 +75,20 @@ async function sendMoneyToCustomer(info) {
     }
   } else {
     return {
-      "ResponseCode": "0001",
-      "Data": {
-        "AmountDebited": 0.0,
-        "TransactionId": "09f84e20a283942e807128e8c21d0303",
-        "Description": "Your request has been accepted. We will notify you when the transaction is completed.",
-        "ClientReference": "pay101",
-        "ExternalTransactionId": "",
-        "Amount": 0.8,
-        "Charges": 0.0,
-        "Meta": null,
-        "RecipientName": null
-      }
-    }
+      ResponseCode: "0001",
+      Data: {
+        AmountDebited: 0.0,
+        TransactionId: "09f84e20a283942e807128e8c21d0303",
+        Description:
+          "Your request has been accepted. We will notify you when the transaction is completed.",
+        ClientReference: "pay101",
+        ExternalTransactionId: "",
+        Amount: 0.8,
+        Charges: 0.0,
+        Meta: null,
+        RecipientName: null,
+      },
+    };
   }
 }
 
@@ -158,8 +160,8 @@ async function accountBalance() {
       return res.data;
     } else {
       return {
-        balance: 5000.00
-      }
+        balance: 5000.0,
+      };
     }
   } catch (error) {
     throw error;
@@ -172,7 +174,7 @@ async function POS_Balance() {
         method: "GET",
         url: process.env.MSDID_POS_STATUS_URL,
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "Content-Type": "application/json",
           Authorization: `Basic ${process.env.MSDID_K}`,
           "Cache-Control": "no-cache",
@@ -182,9 +184,8 @@ async function POS_Balance() {
       return res.data?.data;
     } else {
       return {
-        "amount": 100.50
-      }
-        ;
+        amount: 100.5,
+      };
     }
   } catch (error) {
     throw error;
@@ -197,7 +198,7 @@ async function PREPAID_Balance() {
         method: "GET",
         url: process.env.MSDID_PREPAID_STATUS_URL,
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "Content-Type": "application/json",
           Authorization: `Basic ${process.env.MSDID_K}`,
           "Cache-Control": "no-cache",
@@ -207,16 +208,13 @@ async function PREPAID_Balance() {
       return res.data?.data;
     } else {
       return {
-        "amount": 123.50
-      }
-        ;
+        amount: 123.5,
+      };
     }
   } catch (error) {
     throw error;
   }
 }
-
-
 
 async function sendAirtime(info) {
   try {
@@ -329,5 +327,5 @@ module.exports = {
   sendAirtime,
   //
   POS_Balance,
-  PREPAID_Balance
+  PREPAID_Balance,
 };

@@ -1,45 +1,45 @@
-function isValidUUID(uuid) {
+function isValidUUID(uuid=0) {
   return true
   // Check the length
-  if (uuid.length !== 36) {
-    return false;
-  }
+  // if (uuid.length !== 36) {
+  //   return false;
+  // }
 
-  // Check the format
-  const parts = uuid.split('-');
-  if (parts.length !== 5) {
-    return false;
-  }
+  // // Check the format
+  // const parts = uuid.split('-');
+  // if (parts.length !== 5) {
+  //   return false;
+  // }
 
-  if (
-    parts[0].length !== 8 ||
-    parts[1].length !== 4 ||
-    parts[2].length !== 4 ||
-    parts[3].length !== 4 ||
-    parts[4].length !== 12
-  ) {
-    return false;
-  }
+  // if (
+  //   parts[0].length !== 8 ||
+  //   parts[1].length !== 4 ||
+  //   parts[2].length !== 4 ||
+  //   parts[3].length !== 4 ||
+  //   parts[4].length !== 12
+  // ) {
+  //   return false;
+  // }
 
-  // Check for valid characters
-  const validCharacters = '0123456789abcdefABCDEF-';
-  for (const char of uuid) {
-    if (!validCharacters.includes(char)) {
-      return false;
-    }
-  }
+  // // Check for valid characters
+  // const validCharacters = '0123456789abcdefABCDEF-';
+  // for (const char of uuid) {
+  //   if (!validCharacters.includes(char)) {
+  //     return false;
+  //   }
+  // }
 
-  // Check the version
-  if (parts[3][0] !== '4') {
-    return false;
-  }
+  // // Check the version
+  // if (parts[3][0] !== '4') {
+  //   return false;
+  // }
 
-  // Check the variant
-  if (parts[3][1] !== '8' || parts[3][2] !== '9') {
-    return false;
-  }
+  // // Check the variant
+  // if (parts[3][1] !== '8' || parts[3][2] !== '9') {
+  //   return false;
+  // }
 
-  return true;
+  // return true;
 }
 
 function isValidUUID2(uuid) {

@@ -1,6 +1,5 @@
 const router = require("express").Router();
 const asyncHandler = require("express-async-handler");
-const _ = require("lodash");
 const knex = require("../db/knex");
 const generateId = require("../config/generateId");
 const { verifyToken } = require("../middlewares/verifyToken");

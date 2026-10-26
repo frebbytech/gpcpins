@@ -1,6 +1,5 @@
 const router = require("express").Router();
 const asyncHandler = require("express-async-handler");
-const _ = require("lodash");
 const knex = require("../db/knex");
 const generateId = require("../config/generateId");
 const { sendSMS } = require("../config/sms");
@@ -243,10 +242,11 @@ router.post(
     const lastId = lastComplaint ? lastComplaint.id : "";
     const complaintId = generateNextId(lastId) || generateId(12); // Fallback to random ID if needed
 
-
     await knex("complaints").insert({
       id: complaintId,
-      incident_date: new Date(rest.incidentDate) || knex.fn.now(),
+      incident_date: rest.incidentDate
+        ? new Date(rest.incidentDate)
+        : knex.fn.now(),
       service_type: rest.serviceType,
       transaction_id: rest?.transactionId || null,
       meter_no: rest.meterNo || null,

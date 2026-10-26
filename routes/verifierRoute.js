@@ -33,6 +33,7 @@ const verifyAdmin = require("../middlewares/verifyAdmin");
 const { verifyOTP, storeOTP } = require("../services/otp.services");
 const { safeJSON } = require("../config/helpers");
 const generateDeviceId = require("../utils/deviceFingerprint");
+const logger = require("../utils/logger");
 
 const Storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -247,7 +248,8 @@ router.get(
       return res.status(400).json({});
     }
 
-    const { permissions, role, ...rest } = verifier;
+    const { permissions ,...rest } = verifier;
+    delete rest.role
 
     const modifiedVerifier = {
       ...rest,
@@ -388,7 +390,7 @@ router.post(
       });
     } catch (error) {
       await transx.rollback();
-
+logger.error(`"An error has occurred.Try again later"-${error?.message}`);
       return res.status(400).json("An error has occurred.Try again later");
     }
   }),
@@ -527,7 +529,8 @@ router.post(
       try {
         await sendMail(verifier?.email, mailTextShell(message));
       } catch (error) {
-        await knex("tokens").where("_id", verifier?._id).del();
+        await knex("tokens").where("id", verifier?.id).del();
+        console.log(error);
 
         return res.status(500).json("An error has occurred!");
       }
@@ -671,13 +674,13 @@ router.put(
 
     const { id, ...rest } = req.body;
 
-    const updatedVerifier = await knex("users").where("id", _id).update(rest);
+    const updatedVerifier = await knex("users").where("id", id).update(rest);
 
     if (updatedVerifier !== 1) {
       return res.status(400).json("Error updating verifier information.");
     }
 
-    const verifier = await getVerifier(_id);
+    const verifier = await getVerifier(id);
 
     //logs
     await knex("verifier_activity_logs").insert({

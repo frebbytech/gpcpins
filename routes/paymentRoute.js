@@ -65,7 +65,7 @@ const { getInternationalMobileFormat } = require("../config/PhoneCode");
 const logger = require("../utils/logger");
 const { ticketQueue, voucherQueue } = require("../queues/queues");
 const { formatDate, formatTime } = require("../config/dateConfigs");
-const { brassicaPost } = require("../services/brassicaClient");
+// const { brassicaPost } = require("../services/brassicaClient");
 const { getMeter, saveMeter } = require("../services/brassica/token.manager");
 const {
   sendBrassicaMoney,
@@ -556,9 +556,8 @@ router.get(
       }
 
       const bundles = response?.bundles?.map((bundle) => {
-        const { meta, network, ...rest } = bundle;
-        if (Number(rest.price) === 0) return;
-        return rest;
+        if (Number(bundle.price) === 0) return;
+        return bundle;
       });
 
       // logger.info(_.groupBy(bundles, 'category'))
@@ -673,7 +672,6 @@ router.get(
   verifyToken,
   asyncHandler(async (req, res) => {
     const id = req.params.id;
-    const type = req.query.type;
 
     await knex("payments").where({ id: id }).update({
       status: "failed",
@@ -998,8 +996,8 @@ router.post(
       process.env.BRASSICA_CLIENT_PHONENUMBER;
 
     // ---------------- CREATE PAYMENT ----------------
-    let paymentStatus = "pending";
-    let providerResponse = null;
+    let paymentStatus ;
+    let providerResponse;
 
     // 1. Fetch or Lookup Meter Details BEFORE opening DB transactions
     let prepaidMeterPayload = await getMeter(meter);
@@ -1042,7 +1040,7 @@ router.post(
     const paymentId = generateId();
     const transaction_id = generateId(6);
     const transaction_reference = randomBytes(24).toString("hex");
-    const asyncRequestId = uuidv4();
+    let asyncRequestId = uuidv4();
 
     const transx = await knex.transaction();
     if (isWallet) {
@@ -1099,7 +1097,15 @@ router.post(
       };
 
       try {
-        await send3PPBrassicaMoney(momoPayload);
+        const { asyncId } = await send3PPBrassicaMoney(momoPayload);
+
+        await performPrepaidInquiry({
+          referenceId: accountReferenceId,
+          meterSerial: meter,
+          phoneNumber: userPhone,
+          asyncRequestId: asyncId,
+        });
+        asyncRequestId = asyncId;
       } catch (error) {
         return res
           .status(400)
@@ -1108,13 +1114,6 @@ router.post(
 
       paymentStatus = "pending";
     }
-
-    await performPrepaidInquiry({
-      referenceId: accountReferenceId,
-      meterSerial: meter,
-      phoneNumber: userPhone,
-      asyncRequestId,
-    });
 
     providerResponse = {
       billRequest: {
@@ -1186,7 +1185,6 @@ router.post(
         .json({ message: "Database initialization failed" });
     }
 
-    //   logger.info(
     //     `[ECGPay] meter=${meter} category=${accountType} amount=${amount} by=${userName}`,
     //   );
 
@@ -1555,7 +1553,7 @@ router.post(
           } else {
             await emitPaymentFailure({
               userId,
-              txRef: user.phonenumber || reference,
+              txRef: phonenumber || reference,
               reason: "Payment failed",
             });
           }
@@ -1596,6 +1594,9 @@ router.post(
       isWallet,
       token,
     } = req.body;
+
+    let paymentStatus = "pending";
+    let partnerResponse = null;
 
     const trx = await knex.transaction();
 
@@ -1758,7 +1759,7 @@ router.post(
           } else {
             await emitPaymentFailure({
               userId,
-              txRef: user.phonenumber || reference,
+              txRef: phonenumber || reference,
               reason: "Payment failed",
             });
           }
@@ -2115,7 +2116,7 @@ router.post(
 
         trx = await knex.transaction();
 
-        const [service, transaction_id] = transactionId?.split("-");
+        const [service, transaction_id] = transactionId?.split("-") || [];
 
         let payment;
         if (service === "prepaid") {
@@ -2514,7 +2515,7 @@ const selectVouchersForConfirmation = async (trx, transaction) => {
   const vouchers = safeJSON(transaction?.vouchers);
 
   if (!info || !info.categoryId) {
-    throw new Error("Invalid transaction info");
+    throw new Error("Invalid transaction info", { cause: transaction });
   }
 
   const {
@@ -2524,21 +2525,17 @@ const selectVouchersForConfirmation = async (trx, transaction) => {
     paymentDetails,
   } = info;
 
-  let selected = [];
-
   // ---------------- STADIUM / CINEMA ----------------
-
   if (["stadium", "cinema"].includes(categoryType)) {
     const results = await Promise.all(
-      paymentDetails?.tickets.map(async (ticket) => {
+      (paymentDetails?.tickets || []).map(async (ticket) => {
         return trx("vouchers as v")
           .join("categories as c", "v.category_id", "c.id")
           .whereIn("v.id", vouchers)
           .andWhere({
             "v.category_id": categoryId,
             "v.type": ticket.type,
-            "v.status": "sold", // 🔥 IMPORTANT (not "new")
-            // "v.active": 1,
+            "v.status": "sold",
           })
           .limit(ticket.quantity)
           .select(
@@ -2549,23 +2546,23 @@ const selectVouchersForConfirmation = async (trx, transaction) => {
             "c.name as voucherType",
             "c.details",
           )
-          .forUpdate(); // 🔒 LOCK ROWS
+          .forUpdate();
       }),
     );
 
-    selected = results.flat();
+    const selected = results.flat();
+    return validateAndReturn(selected, categoryType, quantity);
   }
 
   // ---------------- BUS ----------------
-  else if (categoryType === "bus") {
-    selected = await trx("vouchers as v")
+  if (categoryType === "bus") {
+    const selected = await trx("vouchers as v")
       .join("categories as c", "v.category_id", "c.id")
       .whereIn("v.type", paymentDetails?.tickets || [])
       .whereIn("v.id", vouchers)
       .andWhere({
         "v.category_id": categoryId,
         "v.status": "sold",
-        // "v.active": 1,
       })
       .select(
         "v.id",
@@ -2576,42 +2573,148 @@ const selectVouchersForConfirmation = async (trx, transaction) => {
         "c.details",
       )
       .forUpdate();
+
+    return validateAndReturn(selected, categoryType, quantity);
   }
 
   // ---------------- DEFAULT (WAEC, etc.) ----------------
-  else {
-    selected = await trx("vouchers as v")
-      .join("categories as c", "v.category_id", "c.id")
-      .whereIn("v.id", vouchers)
-      .andWhere({
-        "v.category_id": categoryId,
-        "v.status": "sold",
-        // "v.active": 1,
-      })
-      .limit(quantity)
-      .select(
-        "v.id",
-        "v.serial",
-        "v.pin",
-        "v.type",
-        "c.name as voucherType",
-        "c.details",
-      )
-      .forUpdate();
-  }
+  const selected = await trx("vouchers as v")
+    .join("categories as c", "v.category_id", "c.id")
+    .whereIn("v.id", vouchers)
+    .andWhere({
+      "v.category_id": categoryId,
+      "v.status": "sold",
+    })
+    .limit(quantity)
+    .select(
+      "v.id",
+      "v.serial",
+      "v.pin",
+      "v.type",
+      "c.name as voucherType",
+      "c.details",
+    )
+    .forUpdate();
 
-  // ---------------- VALIDATION ----------------
-  if (selected?.length <= 0) {
+  return validateAndReturn(selected, categoryType, quantity);
+};
+
+// Isolated validation runner to ensure isolated block scoping
+const validateAndReturn = (selected, categoryType, quantity) => {
+  if (!selected || selected.length === 0) {
     throw new Error("No vouchers available");
   }
 
-  // Optional strict validation (recommended)
   if (categoryType !== "bus" && selected.length < Number(quantity)) {
     throw new Error("Insufficient vouchers");
   }
 
   return selected;
 };
+
+// const selectVouchersForConfirmation = async (trx, transaction) => {
+//   const info = safeJSON(transaction?.info);
+//   const vouchers = safeJSON(transaction?.vouchers);
+
+//   if (!info || !info.categoryId) {
+//     throw new Error("Invalid transaction info");
+//   }
+
+//   const {
+//     categoryId,
+//     quantity,
+//     categoryType, // stadium | cinema | bus | others
+//     paymentDetails,
+//   } = info;
+
+//   let selected = [];
+
+//   // ---------------- STADIUM / CINEMA ----------------
+
+//   if (["stadium", "cinema"].includes(categoryType)) {
+//     const results = await Promise.all(
+//       paymentDetails?.tickets.map(async (ticket) => {
+//         return trx("vouchers as v")
+//           .join("categories as c", "v.category_id", "c.id")
+//           .whereIn("v.id", vouchers)
+//           .andWhere({
+//             "v.category_id": categoryId,
+//             "v.type": ticket.type,
+//             "v.status": "sold", // 🔥 IMPORTANT (not "new")
+//             // "v.active": 1,
+//           })
+//           .limit(ticket.quantity)
+//           .select(
+//             "v.id",
+//             "v.serial",
+//             "v.pin",
+//             "v.type",
+//             "c.name as voucherType",
+//             "c.details",
+//           )
+//           .forUpdate(); // 🔒 LOCK ROWS
+//       }),
+//     );
+
+//     selected = results.flat();
+//   }
+
+//   // ---------------- BUS ----------------
+//   else if (categoryType === "bus") {
+//     selected = await trx("vouchers as v")
+//       .join("categories as c", "v.category_id", "c.id")
+//       .whereIn("v.type", paymentDetails?.tickets || [])
+//       .whereIn("v.id", vouchers)
+//       .andWhere({
+//         "v.category_id": categoryId,
+//         "v.status": "sold",
+//         // "v.active": 1,
+//       })
+//       .select(
+//         "v.id",
+//         "v.serial",
+//         "v.pin",
+//         "v.type",
+//         "c.name as voucherType",
+//         "c.details",
+//       )
+//       .forUpdate();
+//   }
+
+//   // ---------------- DEFAULT (WAEC, etc.) ----------------
+//   else {
+//     selected = await trx("vouchers as v")
+//       .join("categories as c", "v.category_id", "c.id")
+//       .whereIn("v.id", vouchers)
+//       .andWhere({
+//         "v.category_id": categoryId,
+//         "v.status": "sold",
+//         // "v.active": 1,
+//       })
+//       .limit(quantity)
+//       .select(
+//         "v.id",
+//         "v.serial",
+//         "v.pin",
+//         "v.type",
+//         "c.name as voucherType",
+//         "c.details",
+//       )
+//       .forUpdate();
+//   }
+
+//   // ---------------- VALIDATION ----------------
+//   if (selected?.length <= 0) {
+//     throw new Error("No vouchers available");
+//   }
+
+//   // Optional strict validation (recommended)
+//   if (categoryType !== "bus" && selected.length < Number(quantity)) {
+//     throw new Error("Insufficient vouchers");
+//   }
+
+//   return selected;
+// };
 
 async function processVoucher(trx, transaction) {
   const vouchers = await selectVouchersForConfirmation(trx, transaction);
@@ -2673,7 +2776,9 @@ async function markProcessed(trx, transaction) {
       await trx.rollback();
 
       logger.error(error);
-      throw new Error("An error has occurred");
+      throw new Error(`An error has occurred-${error?.message}`, {
+        cause: error,
+      });
     }
   }
 
@@ -2722,10 +2827,12 @@ async function processBundle(trx, transaction) {
         }
       }
     } catch (error) {
-      await transx.rollback();
+      await trx.rollback();
 
       logger.error(error);
-      throw new Error("An error has occurred");
+      throw new Error(`An error has occurred-${error?.message}`, {
+        cause: error,
+      });
     }
   }
 }
@@ -3163,6 +3270,7 @@ async function handlePostPaymentEvents(payment, status, payload) {
 
     // ---------------- 2. REAL-TIME SOCKET EVENT ----------------
     queueMicrotask(async () => {
+      const info = safeJSON(payment?.info);
       try {
         if (isSuccess) {
           logger.info(
@@ -3172,8 +3280,6 @@ async function handlePostPaymentEvents(payment, status, payload) {
           switch (service) {
             case "voucher":
             case "ticket":
-              const info = safeJSON(payment?.info);
-
               await emitPaymentSuccess({
                 userId,
                 txRef:

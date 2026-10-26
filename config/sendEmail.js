@@ -31,7 +31,7 @@ const sendEMail = async (email_address, message, subject) => {
   try {
     // verify connection configuration
     if (process.env.NODE_ENV !== "production") {
-      transportMail.verify(function (error, success) {
+      transportMail.verify(function (error) {
         if (error) {
           console.log("Err is", error);
         } else {

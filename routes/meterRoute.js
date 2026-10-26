@@ -12,6 +12,7 @@ const verifyAdmin = require("../middlewares/verifyAdmin");
 const { verifyToken } = require("../middlewares/verifyToken");
 const { getMeter } = require("../services/brassica/token.manager");
 const { getMeterInfo } = require("../services/brassica/eCollectClient");
+const logger = require("../utils/logger");
 
 router.get(
   "/",
@@ -202,6 +203,7 @@ router.post(
 
         availableMeter = response;
       } catch (error) {
+         logger.error("Could not save meter details", { cause: error });
         return res
           .status(500)
           .json("An error has occurred!.Could not save meter details.");

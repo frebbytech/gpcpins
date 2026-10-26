@@ -1,7 +1,6 @@
 const router = require("express").Router();
 const asyncHandler = require("express-async-handler");
 const _ = require("lodash");
-const crypto = require("crypto");
 const sendEMail = require("../config/sendEmail");
 const generateId = require("../config/generateId");
 const { mailTextShell } = require("../config/mailText");
@@ -10,6 +9,7 @@ const { mailTextShell } = require("../config/mailText");
 const verifyAdmin = require("../middlewares/verifyAdmin");
 const { verifyToken } = require("../middlewares/verifyToken");
 const { rateLimit } = require("express-rate-limit");
+const logger = require("../utils/logger");
 
 const limit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
@@ -191,6 +191,7 @@ router.post(
       return res.status(201).json("Message sent successfully");
     } catch (error) {
       await trx.rollback();
+        logger.error("Error processing Message request", { cause: error });
 
       return res
         .status(500)
@@ -314,13 +315,13 @@ router.delete(
   }),
 );
 
-function verifySignature(body, signature) {
-  const digest = crypto
-    .createHmac("sha1", WEBHOOK_SECRET)
-    .update(body)
-    .digest("hex");
-  return signature === digest;
-}
+// function verifySignature(body, signature) {
+//   const digest = crypto
+//     .createHmac("sha1", WEBHOOK_SECRET)
+//     .update(body)
+//     .digest("hex");
+//   return signature === digest;
+// }
 
 router.post(
   "/whatsapp/media",

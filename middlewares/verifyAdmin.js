@@ -1,5 +1,5 @@
 const verifyAdmin = (req, res, next) => {
-  const { role } = req?.user;
+  const  role  = req?.user?.role;
   const ADMIN_ROLE = parseInt(process.env.ADMIN_ID);
   const EMP_ROLE = parseInt(process.env.EMPLOYEE_ID);
   const ROLE = parseInt(role);

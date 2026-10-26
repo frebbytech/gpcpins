@@ -288,6 +288,7 @@ router.get(
         modifiedTransaction = getYesterdayTransactionArray(
           modifiedscannedTicketsWithRange,
         );
+        break;
 
       case "week":
         modifiedTransaction = getLastSevenDaysTransactionsArray(
@@ -299,7 +300,7 @@ router.get(
         modifiedTransaction = getThisMonthTransactionArray(
           modifiedscannedTicketsWithRange,
         );
-
+break;
       case "lmonth":
         modifiedTransaction = getLastMonthTransactionArray(
           modifiedscannedTicketsWithRange,
@@ -485,6 +486,7 @@ router.get(
         modifiedTransaction = getYesterdayTransactionArray(
           modifiedscannedTicketsWithRange,
         );
+        break;
 
       case "week":
         modifiedTransaction = getLastSevenDaysTransactionsArray(
@@ -496,7 +498,7 @@ router.get(
         modifiedTransaction = getThisMonthTransactionArray(
           modifiedscannedTicketsWithRange,
         );
-
+        break;
       case "lmonth":
         modifiedTransaction = getLastMonthTransactionArray(
           modifiedscannedTicketsWithRange,
@@ -553,6 +555,8 @@ router.get(
   verifyScanner,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+const ticketTypes=[]
+
     const scannedTickets = await knex("scanned_tickets_vouchers_view")
       .select("createdAt", "voucherType", "type", "verifierName")
       .where({ caetgoryId: id })
@@ -566,7 +570,7 @@ router.get(
       });
     }
 
-    res.status(200).json(modifiedTicket);
+    res.status(200).json(scannedTickets);
   }),
 );
 

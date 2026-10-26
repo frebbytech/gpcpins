@@ -31,10 +31,8 @@ const sendEMail = require("../config/sendEmail");
 const { sendOTPSMS, sendSMS } = require("../config/sms");
 const { mailTextShell } = require("../config/mailText");
 const { getInternationalMobileFormat } = require("../config/PhoneCode");
-const redisClient = require("../config/redisClient");
 const generateDeviceId = require("../utils/deviceFingerprint");
 const { storeOTP, verifyOTP } = require("../services/otp.services");
-const { safeJSON } = require("../config/helpers");
 const {
   registrationSchema,
   googleRegistrationSchema,
@@ -860,8 +858,7 @@ router.put(
       return res.status(404).json("No Image was found!");
     }
 
-    let url = req.file?.filename;
-    url = await uploadPhoto(req.file);
+   const  url = await uploadPhoto(req.file);
 
     const user = await knex("users").where("id", id).update({ profile: url });
 
@@ -886,7 +883,7 @@ router.put(
   verifyToken,
   verifyAdmin,
   asyncHandler(async (req, res) => {
-    const { id: userId } = req.user;
+    // const { id: userId } = req.user;
     const { id, active } = req.body;
 
     const updatedUser = await knex("users")
@@ -922,7 +919,7 @@ router.delete(
   verifyToken,
   verifyAdmin,
   asyncHandler(async (req, res) => {
-    const { id: userId } = req.user;
+    // const { id: userId } = req.user;
     const { id } = req.params;
 
     if (!isValidUUID2(id)) {

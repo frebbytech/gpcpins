@@ -1,4 +1,4 @@
-module.exports = isMobile = (req) => {
+const isMobile = (req) => {
   const userAgent = req.get('User-Agent') || req.get('user-agent');
   return (
     /mobile/i.test(userAgent) ||
@@ -7,3 +7,5 @@ module.exports = isMobile = (req) => {
     )
   );
 };
+
+module.exports = isMobile

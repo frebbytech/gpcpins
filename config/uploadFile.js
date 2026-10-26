@@ -18,7 +18,7 @@ async function validateFile(filePath) {
   try {
     await fsPromises.access(filePath, fs.constants.F_OK);
   } catch (error) {
-    throw new Error(`File does not exist: ${filePath}`);
+    throw new Error(`File does not exist: ${filePath}`, { cause: error });
   }
 }
 
@@ -90,7 +90,7 @@ async function uploadToFirebase({
       destination,
     });
 
-    throw new Error("File upload failed");
+    throw new Error("File upload failed", { cause: error });
   } finally {
     //
     // ALWAYS CLEAN TEMP FILE
@@ -244,7 +244,7 @@ async function deleteFile(storagePath) {
   } catch (error) {
     console.error("Delete File Error:", error);
 
-    throw new Error("Failed to delete file");
+    throw new Error("Failed to delete file", { cause: error });
   }
 }
 

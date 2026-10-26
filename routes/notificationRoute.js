@@ -11,6 +11,40 @@ const verifyScanner = require("../middlewares/verifyScanner");
 const { safeJSON } = require("../config/helpers");
 const { parseDateRange } = require("../config/dateConfigs");
 
+// router.get(
+//   "/",
+//   verifyToken,
+//   verifyAdmin,
+//   asyncHandler(async (req, res) => {
+//     const { id, created_at: modifiedAt } = req.user;
+//     const { title } = req.query;
+
+//     let notification = [];
+
+//     if (!isValidUUID2(id)) {
+//       return res.status(400).json("Invalid Request!");
+//     }
+//     if (title) {
+//       notification = await knex("notifications")
+//         .where("title", title)
+//         .select("*");
+//     } else {
+//       notification = await knex("notifications")
+//         .select("*")
+//         .limit(50)
+//         .orderBy("created_at", "desc");
+//     }
+
+//     notification.filter(({ created_at }) => {
+//       return moment(created_at).isSameOrAfter(moment(modifiedAt));
+//     });
+
+//     const notifications = _.orderBy(notification, "created_at", "desc");
+
+//     res.status(200).json(notifications);
+//   }),
+// );
+
 router.get(
   "/",
   verifyToken,
@@ -19,31 +53,34 @@ router.get(
     const { id, created_at: modifiedAt } = req.user;
     const { title } = req.query;
 
-    let notification = [];
-
     if (!isValidUUID2(id)) {
       return res.status(400).json("Invalid Request!");
     }
+
+    let rawNotifications = [];
+
     if (title) {
-      notification = await knex("notifications")
+      rawNotifications = await knex("notifications")
         .where("title", title)
         .select("*");
     } else {
-      notification = await knex("notifications")
+      rawNotifications = await knex("notifications")
         .select("*")
         .limit(50)
         .orderBy("created_at", "desc");
     }
 
-    notification.filter(({ created_at }) => {
+    // Fix: Re-assign the filtered array, or pass it directly to the sorter
+    const filteredNotifications = rawNotifications.filter(({ created_at }) => {
       return moment(created_at).isSameOrAfter(moment(modifiedAt));
     });
 
-    const notifications = _.orderBy(notification, "created_at", "desc");
+    const notifications = _.orderBy(filteredNotifications, "created_at", "desc");
 
-    res.status(200).json(notifications);
+    return res.status(200).json(notifications);
   }),
 );
+
 
 router.get(
   "/user",
@@ -436,8 +473,6 @@ router.put(
   asyncHandler(async (req, res) => {
     const { id } = req.user;
 
-    const { ids } = req.body;
-
     await knex("notifications")
       .where("user_id", id)
       .update({ active: false, is_read: true });
@@ -525,7 +560,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { id } = req.user;
 
-    notification = await knex("notifications").where("user_id", id).del();
+   const notification = await knex("notifications").where("user_id", id).del();
 
     if (!notification) {
       return res.status(404).json("Error removing notifications!");

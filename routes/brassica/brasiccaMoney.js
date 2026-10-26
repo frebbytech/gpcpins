@@ -58,7 +58,7 @@ function chargeBody(p, key) {
       paymentInstrument: {
         paymentMethod: "Mobile",
         mno: "",
-        msisdn: mobileNumber,
+        msisdn: p.mobileNumber,
       },
       [key]: chargeMeterBlock(p),
     },
@@ -130,10 +130,10 @@ async function send3PPBrassicaMoney(payload) {
       throw new Error("Error processing payment");
     }
 
-    return { success: true, data };
+    return { success: true, asyncId, data };
   } catch (err) {
     console.log(err);
-    throw new Error(err);
+    throw new Error(err, { cause: err });
   }
 }
 async function sendBrassicaMoney(payload) {
@@ -186,7 +186,7 @@ async function sendBrassicaMoney(payload) {
     return { success: true, data };
   } catch (err) {
     console.log(err);
-    throw new Error(err);
+    throw new Error(err, { cause: err });
   }
 }
 
@@ -199,7 +199,7 @@ async function getBrassicaBalance() {
 
     return data;
   } catch (err) {
-    throw new Error(err);
+    throw new Error(err, { cause: err });
   }
 }
 
@@ -216,7 +216,7 @@ async function getBrassica3PPTransactionStatus(transactionId, asyncId) {
     return data;
   } catch (err) {
     console.log(err);
-    throw new Error(err?.raw?.message || "Error fetching transaction status");
+    throw new Error(err?.raw?.message || "Error fetching transaction status", { cause: err });
   }
 }
 async function getBrassicaTransactionStatus(transactionId, transactionType) {
@@ -235,7 +235,7 @@ async function getBrassicaTransactionStatus(transactionId, transactionType) {
     return data;
   } catch (err) {
     console.log(err);
-    throw new Error(err?.raw?.message || "Error fetching transaction status");
+    throw new Error(err?.raw?.message || "Error fetching transaction status", { cause: err });
   }
 }
 
@@ -296,7 +296,7 @@ async function getBrassicaECollectPrepaidChargeStatus(
     return data;
   } catch (err) {
     console.log(err);
-    throw new Error(err?.raw?.message || "Error fetching transaction status");
+    throw new Error(err?.raw?.message || "Error fetching transaction status", { cause: err });
   }
 }
 

@@ -13,7 +13,6 @@ const { rateLimit } = require("express-rate-limit");
 // const sendMail = require("../config/sendEmail");
 const {
   verifyToken,
-  verifyRefreshToken,
   removeUser,
 } = require("../middlewares/verifyToken");
 const { isValidUUID2 } = require("../config/validation");
@@ -33,10 +32,9 @@ const { parseDateRange } = require("../config/dateConfigs");
 
 const knex = require("../db/knex");
 const {
-  sendBundle,
-  sendAirtime,
   getBundleList,
   accountBalance,
+  topUpStatus,
 } = require("../config/sendMoney");
 const { MTN, VODAFONE, AIRTELTIGO } = require("../config/bundleList");
 const {
@@ -48,7 +46,6 @@ const sendEMail = require("../config/sendEmail");
 const generateRandomNumber = require("../config/generateRandomCode");
 const { sendSMS, sendOTPSMS } = require("../config/sms");
 const currencyFormatter = require("../config/currencyFormatter");
-const redisClient = require("../config/redisClient");
 const { safeJSON } = require("../config/helpers");
 const generateDeviceId = require("../utils/deviceFingerprint");
 const { uploadPhoto } = require("../config/uploadFile");
@@ -514,6 +511,7 @@ router.post(
       });
     } catch (error) {
       await transaction.rollback();
+      console.error(error);
 
       res.status(500).json("An unknown error has occurred!");
     }
@@ -605,6 +603,7 @@ GAB Powerful Consult
         rest?.phonenumber,
       );
     } catch (error) {
+      console.error(error);
       res.status(500).json("An unknown error has occurred");
     }
   }),
@@ -952,8 +951,8 @@ router.put(
       return res.status(404).json("No Image was found!");
     }
 
-    let url = req.file?.filename;
-    url = await uploadPhoto(req.file);
+    // let url = req.file?.filename;
+    const url = await uploadPhoto(req.file);
 
     const user = await knex("users").where("id", id).update({ profile: url });
 
@@ -1330,6 +1329,7 @@ router.get(
 
       res.status(200).json(response);
     } catch (error) {
+      console.error(error);
       res.status(401).json(error?.response?.data);
     }
   }),
@@ -1359,13 +1359,14 @@ router.get(
       }
 
       const bundles = response?.bundles?.map((bundle) => {
-        const { meta, network, ...rest } = bundle;
-        if (Number(rest.price) === 0) return;
-        return rest;
+     
+        if (Number(bundle.price) === 0) return;
+        return bundle;
       });
 
       res.status(200).json(_.compact(bundles));
     } catch (error) {
+      console.error(error);
       res.status(401).json("An unknown error has occurred");
     }
   }),

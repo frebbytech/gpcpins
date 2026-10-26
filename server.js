@@ -101,8 +101,6 @@ const limit = rateLimit({
   message: "Too many requests!. please try again later.",
 });
 
-
-
 // Apply rate limiting to all requests
 app.use(limiter);
 
@@ -191,6 +189,7 @@ app.use(
       try {
         JSON.parse(buf);
       } catch (e) {
+        logger.error(` Invalid JSON - ${e?.message}`);
         throw createError.BadRequest("Invalid JSON");
       }
     },
@@ -214,7 +213,7 @@ const staticOptions = {
   index: false,
   maxAge: "1d",
   redirect: false,
-  setHeaders: (res, path) => {
+  setHeaders: (res) => {
     // Set security headers for static files
     res.set("x-timestamp", Date.now());
   },
@@ -307,7 +306,7 @@ app.use((req, res, next) => {
 });
 
 // Global error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
   const status = err.status || 500;
 
   logger.error(err);

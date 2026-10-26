@@ -136,6 +136,7 @@ const voucherWorker = new Worker(
         try {
           base64Logo = await imageUrlToBase64(details.logo);
         } catch (err) {
+          console.log(err)
           logger.warn("Logo conversion failed");
         }
       }

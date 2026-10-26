@@ -18,7 +18,6 @@ const { uploadPhoto } = require("../config/uploadFile");
 const knex = require("../db/knex");
 const { isValidUUID2, isValidEmail } = require("../config/validation");
 const { storeOTP } = require("../services/otp.services");
-const { safeJSON } = require("../config/helpers");
 const { getInternationalMobileFormat } = require("../config/PhoneCode");
 
 const Storage = multer.diskStorage({
@@ -81,11 +80,10 @@ router.get(
       return res.status(400).json({});
     }
 
-    const { role, ...rest } = employee;
-    const permissions = await getPermissions(rest?.role_id);
+    const permissions = await getPermissions(employee?.role_id);
 
     const modifiedEmployee = {
-      ...rest,
+      ...employee,
       permissions: permissions,
       role: employee.role_name,
     };

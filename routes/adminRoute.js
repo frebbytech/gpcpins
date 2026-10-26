@@ -28,10 +28,9 @@ const { sendOTPSMS } = require("../config/sms");
 const generateId = require("../config/generateId");
 const redisClient = require("../config/redisClient");
 const { storeOTP, verifyOTP } = require("../services/otp.services");
-const { otpSchema, adminOTPSchema } = require("../utils/validationSchema");
+const {adminOTPSchema } = require("../utils/validationSchema");
 const { validate } = require("../middlewares/validators");
 const generateDeviceId = require("../utils/deviceFingerprint");
-const { safeJSON } = require("../config/helpers");
 const { parseTimeToMs } = require("../utils/time");
 const { getExpiryTimeByRole } = require("../utils/helper");
 
@@ -74,12 +73,12 @@ router.get(
     // Map through the users and modify the permissions property
 
     const modifiedusers = users.map(
-      ({ role, permissions, password, ...rest }) => {
+      ({ role,...rest }) => {
         // Parse the permissions string to a JSON object
         return {
           ...rest,
           role: role === process.env.ADMIN_ID ? "Administrator" : "Employee",
-          // permissions: JSON.parse(permissions),
+          permissions: [],
         };
       },
     );
@@ -390,6 +389,7 @@ router.post(
       await redisClient.set("sms", api);
       res.json("SMS API saved successfully");
     } catch (error) {
+      console.log(error)
       res.status(500).json("Error saving to Redis");
     }
   }),
@@ -399,7 +399,7 @@ router.post(
   "/logout",
   verifyToken,
   asyncHandler(async (req, res) => {
-    const { sub: id, jti } = req.authUser;
+    const { sub: id } = req.authUser;
 
     res.clearCookie("SSIDR");
 

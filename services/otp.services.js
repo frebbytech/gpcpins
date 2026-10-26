@@ -1,7 +1,7 @@
 const redis = require("../config/redisClient");
 
-const OTP_PREFIX = "gpcpins";
-const ATTEMPT_PREFIX = "gpcpins_attempts";
+// const OTP_PREFIX = "gpcpins";
+// const ATTEMPT_PREFIX = "gpcpins_attempts";
 
 const OTP_TTL = 900; // 10 minutes
 const MAX_ATTEMPTS = 5;

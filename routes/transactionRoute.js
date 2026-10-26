@@ -4,7 +4,7 @@ const { randomBytes } = require("crypto");
 const _ = require("lodash");
 const moment = require("moment");
 const generateId = require("../config/generateId");
-const pLimit = require("p-limit");
+// const pLimit = require("p-limit");
 const cors = require("cors");
 //model
 
@@ -59,7 +59,7 @@ const limit = rateLimit({
   message: "Too many requests!. please try again later.",
 });
 
-const plimit = pLimit(3);
+// const plimit = pLimit(3);
 
 const corsOptions = {
   methods: "POST",
@@ -241,7 +241,6 @@ router.get(
           updatedAt: rest?.updatedAt,
           modifiedAt: rest?.modifiedAt,
           isProcessed: rest?.isProcessed,
-          partner: safeJSON(partner),
           mode: rest?.mode,
           status: rest?.status,
         };
@@ -568,7 +567,6 @@ router.get(
           issuer: rest?.issuer,
           issuerName: rest?.issuerName,
           refunder: rest?.refunder,
-          partner: safeJSON(partner),
           mode: rest?.mode,
           status: rest?.status,
         };
@@ -1902,11 +1900,12 @@ router.get(
     ) {
       return res.status(400).json("No results match your search!");
     }
-    const { reference, partner, user, info, ...rest } = transaction;
+    const { info, ...rest } = transaction;
+    const infoDetails = safeJSON(info);
 
     const category = await knex("categories")
       .select("name", "type")
-      .where("id", details?.categoryId)
+      .where("id", infoDetails?.categoryId)
       .first();
 
     res.status(200).json({
@@ -1916,225 +1915,225 @@ router.get(
       email: rest.email,
       mode: rest.mode,
       service: rest.service,
-      domain: details?.service,
+      domain: infoDetails?.service,
       status: rest.status,
       categoryName: category?.name,
       categoryType: category?.type,
       amount: rest?.amount,
-      downloadLink: details?.downloadLink,
+      downloadLink: infoDetails?.downloadLink,
       createdAt: rest.createdAt,
       info: safeJSON(info),
     });
   }),
 );
 
-router.get(
-  "/refund/:id",
-  limit,
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { category } = req.query;
+// router.get(
+//   "/refund/:id",
+//   limit,
+//   asyncHandler(async (req, res) => {
+//     const { id } = req.params;
+//     const { category } = req.query;
 
-    if (!isValidUUID2(id) || !category) {
-      return res.status(400).json("No results match your search");
-    }
+//     if (!isValidUUID2(id) || !category) {
+//       return res.status(400).json("No results match your search");
+//     }
 
-    let transaction = {};
-    switch (category) {
-      case "voucher":
-      case "ticket":
-        const voucher_transaction = await knex(
-          "vw_payments_voucher_transactions",
-        )
-          .select(
-            "id",
-            "paymentId",
-            "paymentReference as reference",
-            "mode",
-            "info",
-            "email",
-            "amount",
-            "phonenumber",
-            "createdAt",
-            "updatedAt",
-            "status",
-            "userId as user",
-            knex.raw("DATE_FORMAT(updatedAt,'%D %M,%Y %r') as modifiedAt"),
-          )
-          .where({ id })
-          .first();
+//     let transaction = {};
+//     switch (category) {
+//       case "voucher":
+//       case "ticket":
+//         const voucher_transaction = await knex(
+//           "vw_payments_voucher_transactions",
+//         )
+//           .select(
+//             "id",
+//             "paymentId",
+//             "paymentReference as reference",
+//             "mode",
+//             "info",
+//             "email",
+//             "amount",
+//             "phonenumber",
+//             "createdAt",
+//             "updatedAt",
+//             "status",
+//             "userId as user",
+//             knex.raw("DATE_FORMAT(updatedAt,'%D %M,%Y %r') as modifiedAt"),
+//           )
+//           .where({ id })
+//           .first();
 
-        if (_.isEmpty(voucher_transaction))
-          return res.status(400).json("No results match your search!");
+//         if (_.isEmpty(voucher_transaction))
+//           return res.status(400).json("No results match your search!");
 
-        transaction = voucher_transaction;
-        break;
+//         transaction = voucher_transaction;
+//         break;
 
-      case "airtime":
-        agent_airtime_transaction = await knex("agent_transactions")
-          .select(
-            "id",
-            "info",
+//       case "airtime":
+//         agent_airtime_transaction = await knex("agent_transactions")
+//           .select(
+//             "id",
+//             "info",
 
-            knex.raw(`'Wallet' as mode`),
-            knex.raw(`true as isAgent`),
-            "reference",
-            "total_amount as amount",
-            "created_at as createdAt",
-            "updated_at as updatedAt",
-            "status",
-            "user_id as user",
-          )
-          .where({ id: id, type: "airtime" })
-          .first();
+//             knex.raw(`'Wallet' as mode`),
+//             knex.raw(`true as isAgent`),
+//             "reference",
+//             "total_amount as amount",
+//             "created_at as createdAt",
+//             "updated_at as updatedAt",
+//             "status",
+//             "user_id as user",
+//           )
+//           .where({ id: id, type: "airtime" })
+//           .first();
 
-        airtime_transaction = await knex("vw_payments_airtime_transactions")
-          .select(
-            "id",
-            "paymentId",
-            "info",
-            "mode",
-            "email",
-            "phonenumber",
-            "paymentReference as reference",
-            "amount",
-            "createdAt",
-            "updatedAt",
-            "status",
-            "userId as user",
-          )
-          .where({ id: id })
-          .first();
+//         airtime_transaction = await knex("vw_payments_airtime_transactions")
+//           .select(
+//             "id",
+//             "paymentId",
+//             "info",
+//             "mode",
+//             "email",
+//             "phonenumber",
+//             "paymentReference as reference",
+//             "amount",
+//             "createdAt",
+//             "updatedAt",
+//             "status",
+//             "userId as user",
+//           )
+//           .where({ id: id })
+//           .first();
 
-        if (
-          _.isEmpty(_.compact([airtime_transaction, agent_airtime_transaction]))
-        )
-          return res.status(400).json("No results match your search!");
+//         if (
+//           _.isEmpty(_.compact([airtime_transaction, agent_airtime_transaction]))
+//         )
+//           return res.status(400).json("No results match your search!");
 
-        if (!_.isEmpty(agent_airtime_transaction)) {
-          const agentDetails = await knex("vw_users_with_roles")
-            .select("email", "phonenumber")
-            .where({ id: agent_airtime_transaction?.user })
-            .first();
+//         if (!_.isEmpty(agent_airtime_transaction)) {
+//           const agentDetails = await knex("vw_users_with_roles")
+//             .select("email", "phonenumber")
+//             .where({ id: agent_airtime_transaction?.user })
+//             .first();
 
-          transaction = {
-            ...agent_airtime_transaction,
-            email: agentDetails?.email,
-            phonenumber: agentDetails?.phonenumber,
-          };
-        } else {
-          transaction = {
-            ...airtime_transaction,
-            info: safeJSON(airtime_transaction?.info),
-          };
-        }
+//           transaction = {
+//             ...agent_airtime_transaction,
+//             email: agentDetails?.email,
+//             phonenumber: agentDetails?.phonenumber,
+//           };
+//         } else {
+//           transaction = {
+//             ...airtime_transaction,
+//             info: safeJSON(airtime_transaction?.info),
+//           };
+//         }
 
-        break;
+//         break;
 
-      case "bundle":
-        agent_bundle_transaction = await knex("agent_transactions")
-          .select(
-            "id",
-            "reference",
-            "info",
-            "type",
-            knex.raw(`'Wallet' as mode`),
-            knex.raw(`true as isAgent`),
-            "reference",
-            "total_amount as amount",
-            "created_at as createdAt",
-            "updated_at as updatedAt",
-            "status",
-            "user_id as user",
-          )
-          .where({ id: id, type: "bundle" })
-          .first();
-        bundle_transaction = await knex("vw_payments_bundle_transactions")
-          .select(
-            "id",
-            "paymentId",
-            "paymentReference as reference",
-            "email",
-            "phonenumber",
-            "info",
-            "mode",
-            "amount",
-            "status",
-            "userId as user",
-            "createdAt",
-            "updatedAt",
-          )
-          .where({ id: id })
-          .first();
+//       case "bundle":
+//         agent_bundle_transaction = await knex("agent_transactions")
+//           .select(
+//             "id",
+//             "reference",
+//             "info",
+//             "type",
+//             knex.raw(`'Wallet' as mode`),
+//             knex.raw(`true as isAgent`),
+//             "reference",
+//             "total_amount as amount",
+//             "created_at as createdAt",
+//             "updated_at as updatedAt",
+//             "status",
+//             "user_id as user",
+//           )
+//           .where({ id: id, type: "bundle" })
+//           .first();
+//         bundle_transaction = await knex("vw_payments_bundle_transactions")
+//           .select(
+//             "id",
+//             "paymentId",
+//             "paymentReference as reference",
+//             "email",
+//             "phonenumber",
+//             "info",
+//             "mode",
+//             "amount",
+//             "status",
+//             "userId as user",
+//             "createdAt",
+//             "updatedAt",
+//           )
+//           .where({ id: id })
+//           .first();
 
-        if (
-          _.isEmpty(_.compact([bundle_transaction, agent_bundle_transaction]))
-        )
-          return res.status(400).json("No results match your search!");
+//         if (
+//           _.isEmpty(_.compact([bundle_transaction, agent_bundle_transaction]))
+//         )
+//           return res.status(400).json("No results match your search!");
 
-        if (!_.isEmpty(agent_bundle_transaction)) {
-          const agentDetails = await knex("vw_users_with_roles")
-            .select("email", "phonenumber")
-            .where({ id: agent_bundle_transaction?.user })
-            .first();
+//         if (!_.isEmpty(agent_bundle_transaction)) {
+//           const agentDetails = await knex("vw_users_with_roles")
+//             .select("email", "phonenumber")
+//             .where({ id: agent_bundle_transaction?.user })
+//             .first();
 
-          transaction = {
-            ...agent_bundle_transaction,
-            email: agentDetails?.email,
-            phonenumber: agentDetails?.phonenumber,
-          };
-        } else {
-          transaction = {
-            ...bundle_transaction,
-            info: safeJSON(bundle_transaction?.info),
-          };
-        }
-        break;
-      case "prepaid":
-        const prepaid_transaction = await knex(
-          "vw_meter_payment_prepaid_transaction_view",
-        )
-          .select(
-            "id",
-            "paymentId",
-            "paymentReference as reference",
-            "info",
-            "email",
-            "phonenumber",
-            "mode",
-            "amount",
-            "status",
-            "userId as user",
-            "createdAt",
-            "updatedAt",
-          )
-          .where({ id })
-          .first();
+//           transaction = {
+//             ...agent_bundle_transaction,
+//             email: agentDetails?.email,
+//             phonenumber: agentDetails?.phonenumber,
+//           };
+//         } else {
+//           transaction = {
+//             ...bundle_transaction,
+//             info: safeJSON(bundle_transaction?.info),
+//           };
+//         }
+//         break;
+//       case "prepaid":
+//         const prepaid_transaction = await knex(
+//           "vw_meter_payment_prepaid_transaction_view",
+//         )
+//           .select(
+//             "id",
+//             "paymentId",
+//             "paymentReference as reference",
+//             "info",
+//             "email",
+//             "phonenumber",
+//             "mode",
+//             "amount",
+//             "status",
+//             "userId as user",
+//             "createdAt",
+//             "updatedAt",
+//           )
+//           .where({ id })
+//           .first();
 
-        if (_.isEmpty(prepaid_transaction))
-          return res.status(400).json("No results match your search!");
+//         if (_.isEmpty(prepaid_transaction))
+//           return res.status(400).json("No results match your search!");
 
-        transaction = prepaid_transaction;
+//         transaction = prepaid_transaction;
 
-        break;
+//         break;
 
-      default:
-        transaction = {};
-    }
+//       default:
+//         transaction = {};
+//     }
 
-    if (_.isEmpty(transaction)) {
-      return res.status(400).json("No results match your search!");
-    }
-    res.status(200).json(transaction);
-  }),
-);
+//     if (_.isEmpty(transaction)) {
+//       return res.status(400).json("No results match your search!");
+//     }
+//     res.status(200).json(transaction);
+//   }),
+// );
 
 router.post(
   "/refund",
   verifyToken,
   verifyAdmin,
   asyncHandler(async (req, res) => {
-    const { id: ISSUER_ID, name } = req.user;
+    const { id: ISSUER_ID,  } = req.user;
     const {
       id,
       paymentId,
@@ -2627,28 +2626,29 @@ router.put(
   "/delete",
   verifyToken,
   asyncHandler(async (req, res) => {
+    const { id: userId } = req.user;
     const { ids } = req.body;
 
     if (_.isEmpty(ids)) {
       return res.status(400).json("Invalid Request");
     }
 
-    await knex("voucher_transactions").where("_id", "IN", ids).update({
+    await knex("voucher_transactions").where("id", "IN", ids).update({
       active: 0,
     });
-    await knex("prepaid_transactions").where("_id", "IN", ids).update({
+    await knex("prepaid_transactions").where("id", "IN", ids).update({
       active: 0,
     });
-    await knex("airtime_transactions").where("_id", "IN", ids).update({
+    await knex("airtime_transactions").where("id", "IN", ids).update({
       active: 0,
     });
-    await knex("bundle_transactions").where("_id", "IN", ids).update({
+    await knex("bundle_transactions").where("id", "IN", ids).update({
       active: 0,
     });
 
     //logs
     await knex("activity_logs").insert({
-      employee_id: _id,
+      employee_id: userId,
       title: "Removed multiple transactions!",
       severity: "error",
     });
@@ -2896,7 +2896,7 @@ router.get(
     const modifiedTransactions = transactions.map(({ info, ...rest }) => {
       return {
         ...rest,
-        // info: JSON.parse(info),
+        info: safeJSON(info),
       };
     });
     const groupedTransactions = _.groupBy(modifiedTransactions, "type");
@@ -3214,12 +3214,12 @@ router.get(
     const vouchers = await Promise.all(modifiedTransaction);
 
     const modifiedECGTransaction = prepaid_transactions.map((transaction) => {
-      const { info: transInfo, ...rest } = transaction;
-      const info = safeJSON(transaction?.info);
+      const { info, ...rest } = transaction;
+      const infoDetails = safeJSON(info);
       return {
         ...rest,
-        downloadLink: info?.downloadLink,
-        status: transaction?.status,
+        downloadLink: infoDetails?.downloadLink,
+        status: rest?.status,
       };
     });
 
@@ -3249,7 +3249,6 @@ router.get(
     const { startDate, endDate, report } = req.query;
 
     const { role } = req.params;
-  
 
     if (role !== "users" && role !== "agents") {
       return res.status(400).json("Invalid role");
@@ -3261,7 +3260,6 @@ router.get(
       .select("id")
       .where("code", roleCode)
       .first();
-   
 
     const sDate = moment(startDate).format("YYYY-MM-DD");
     const eDate = moment(endDate).format("YYYY-MM-DD");
