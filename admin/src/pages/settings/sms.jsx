@@ -7,15 +7,15 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
-import { getSMSAPI, postSMSAPI } from "../../api/adminAPI";
+import { getSMSAPI, postSMSAPI } from "@/api/adminAPI";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CustomContext } from "../../context/providers/CustomProvider";
-import { globalAlertType } from "../../components/alert/alertType";
+import { useCustomContext } from "@/context/providers/CustomProvider";
+import { globalAlertType } from "@/components/alert/alertType";
 import { LoadingButton } from "@mui/lab";
 
 const SMSSettings = () => {
   const queryClient = useQueryClient();
-  const { customDispatch } = useContext(CustomContext);
+  const { customDispatch } =useCustomContext();
 
   const smsDetails = useQuery({
     queryKey: ["sms-status"],

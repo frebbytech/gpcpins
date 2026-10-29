@@ -354,4 +354,12 @@ export const BOTTOM_ITEMS = [
     icon: SettingsRounded,
     permission: 'Settings',
   },
+  {
+    type: 'link',
+    id: 'site-settings',
+    title: 'Site Settings',
+    path: 'site-settings',
+    icon: SettingsRounded,
+    permission: 'Settings',
+  },
 ];

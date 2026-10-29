@@ -34,6 +34,8 @@ const initSocketServer = async (server) => {
     url: process.env.REDIS_HOST_EXT,
     socket: {
       reconnectStrategy: (retries) => Math.min(retries * 50, 2000),
+      connectTimeout: 10000, // Time allowed to establish a connection (10s)
+      keepAlive: 5000, // Keep-alive packets interval
     },
   });
 

@@ -26,6 +26,48 @@ const {
 } = require("../config/transactionSummary");
 const verifyAdmin = require("../middlewares/verifyAdmin");
 const { safeJSON } = require("../config/helpers");
+const logger = require("../utils/logger");
+
+const isNonEmptyString = (v) => typeof v === "string" && v.trim().length > 0;
+const flagOn = (name) => String(process.env[name] ?? "").toLowerCase() === "true";
+const MAX_SCAN_ID_LENGTH = 20; // scanned_tickets.id is varchar(20)
+const MAX_SYNC_BATCH = 1000;
+
+const toDate = (value) => {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+};
+
+const parseJSON = (value, fallback = null) => {
+  if (value && typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+// Categories a verifier is assigned to (their assigned_tickets rows).
+const getAssignedCategoryIds = async (db, userId) => {
+  const rows = await db("assigned_tickets")
+    .select("category_id")
+    .where("verifier_id", userId);
+  return _.uniq(_.map(rows, "category_id"));
+};
+
+// voucher_transactions.vouchers is an array of the voucher ids sold in that
+// transaction (stored as JSON text).
+const transactionIncludesVoucher = (vouchers, voucherId) => {
+  const list = parseJSON(vouchers, null);
+  return Array.isArray(list) && list.map(String).includes(voucherId);
+};
+
+const buildVerifiedResponse = async (db, voucherId, scan) => {
+  const row = await db("scanned_tickets_vouchers_view")
+    .where({ voucherId })
+    .first();
+  return { ...(row ?? { _id: scan?.id, voucherId }), isVerified: true };
+};
 
 router.get(
   "/",
@@ -75,6 +117,19 @@ router.get(
   asyncHandler(async (req, res) => {
     const { category } = req.query;
 
+    if (!isNonEmptyString(category)) {
+      return res.status(400).json("Invalid Request!");
+    }
+
+    // Vouchers (with pin + serial) are only handed to verifiers assigned to
+    // that category.
+    if (!req.user.isAdmin) {
+      const assigned = await getAssignedCategoryIds(knex, req.user.id);
+      if (!assigned.includes(category)) {
+        return res.status(403).json("You are not assigned to this category.");
+      }
+    }
+
     const vouchers = await knex("vouchers")
       .select(
         "vouchers.id",
@@ -88,8 +143,8 @@ router.get(
         "vouchers.createdAt",
         "vouchers.updatedAt",
       )
-      .join("categories", "vouchers.category", "categories.id")
-      .where("vouchers.category", category);
+      .join("categories", "vouchers.category_id", "categories.id")
+      .where("vouchers.category_id", category);
 
     res.status(200).json(vouchers);
   }),
@@ -100,126 +155,176 @@ router.get(
   verifyToken,
   verifyScanner,
   asyncHandler(async (req, res) => {
-    let tickets = [];
+    const query = knex("scanned_tickets").select("*").orderBy("createdAt", "desc");
 
-    tickets = await knex("scanned_tickets")
-      .select("*")
-      .orderBy("createdAt", "desc");
-
-    if (_.isEmpty(tickets)) {
-      return res.status(200).json([]);
+    // Verifiers only see their own scans; admins see everything.
+    if (!req.user.isAdmin) {
+      query.where("verifier", req.user.id);
     }
-    const modifiedTickets = tickets.map(({ type, ...rest }) => {
-      return {
-        ...rest,
-        type: JSON.parse(type),
-      };
-    });
 
-    res.status(200).json(modifiedTickets);
+    const tickets = await query;
+
+    // `type` does not exist on this table (the old JSON.parse(type) threw).
+    res.status(200).json(
+      tickets.map(({ type, ...rest }) =>
+        type === undefined ? rest : { ...rest, type: parseJSON(type, type) },
+      ),
+    );
   }),
 );
 
+// Offline -> online sync.
+//   body  : [{ id, ticket, verifier, voucher, category, tranxaction, active, createdAt, updatedAt }]
+//   query : ?categories=a,b   (optional, narrows what is sent back)
+//   reply : { message, tickets, rejected }
+//     tickets  = the server's copies of scans in the caller's categories
+//                (excluding the ones just uploaded), so the app can keep its
+//                local data in step with the online DB.
+// The server never re-accepts a scan it already has (voucher + category).
 router.post(
   "/scanned_tickets/sync",
   verifyToken,
   verifyScanner,
   asyncHandler(async (req, res) => {
-    const tickets = req.body;
+    const { id: userId, isAdmin } = req.user;
+    const body = req.body;
 
-    if (_.isEmpty(tickets)) {
-      return res.sendStatus(204);
+    let incoming;
+    if (Array.isArray(body)) {
+      incoming = body;
+    } else if (_.isEmpty(body)) {
+      incoming = [];
+    } else {
+      return res.status(400).json("Invalid Request!");
     }
 
-    const transx = await knex.transaction();
-    try {
-      //check if ticket has already been synced
-      const unSyncedTickets = tickets?.map(async (unSyncedTicket) => {
-        const {
-          id,
-          ticket,
-          verifier,
-          voucher,
-          category,
-          tranxaction,
-          active,
-          createdAt,
-          updatedAt,
-        } = unSyncedTicket;
+    if (incoming.length > MAX_SYNC_BATCH) {
+      return res.status(413).json("Too many tickets in one request.");
+    }
 
-        const itExists = await transx("scanned_tickets")
-          .select("*")
-          .where({
-            voucher,
-            category,
-          })
-          .limit(1)
-          .first();
-        if (!_.isEmpty(itExists)) {
-          return null;
-        } else {
-          //check if voucher exists in the system
-          return {
-            id,
-            ticket,
-            verifier,
-            voucher,
-            category,
-            transaction: tranxaction,
-            active,
-            createdAt,
-            updatedAt,
-          };
+    try {
+      // Which categories may this caller upload to / read back?
+      const assigned = isAdmin ? null : await getAssignedCategoryIds(knex, userId);
+      const requested = String(req.query.categories ?? "")
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+
+      let pullCategories; // null = every category (admin, no filter)
+      if (isAdmin) {
+        pullCategories = requested.length ? requested : null;
+      } else {
+        pullCategories = requested.length
+          ? requested.filter((c) => assigned.includes(c))
+          : assigned;
+      }
+
+      // ---- validate the payload --------------------------------------
+      const wellFormed = incoming.filter(
+        (t) =>
+          t &&
+          isNonEmptyString(t.id) &&
+          t.id.length <= MAX_SCAN_ID_LENGTH &&
+          !/\s/.test(t.id) &&
+          isNonEmptyString(t.voucher) &&
+          isNonEmptyString(t.category) &&
+          (isAdmin || assigned.includes(t.category)),
+      );
+
+      const candidates = _.uniqBy(wellFormed, (t) => `${t.voucher}|${t.category}`);
+
+      const result = await knex.transaction(async (trx) => {
+        let newRows = [];
+        let unknownVouchers = 0;
+
+        if (candidates.length) {
+          const voucherIds = _.map(candidates, "voucher");
+          const ticketIds = _.map(candidates, "id");
+
+          const [scanned, takenIds, knownVouchers] = await Promise.all([
+            trx("scanned_tickets").select("voucher", "category").whereIn("voucher", voucherIds),
+            trx("scanned_tickets").select("id").whereIn("id", ticketIds),
+            trx("vouchers").select("id").whereIn("id", voucherIds),
+          ]);
+
+          const alreadyScanned = new Set(scanned.map((s) => `${s.voucher}|${s.category}`));
+          const idsTaken = new Set(_.map(takenIds, "id"));
+          const voucherExists = new Set(_.map(knownVouchers, "id"));
+
+          // Only trust a client-supplied verifier id when it is a real user.
+          const claimed = _.uniq(_.compact(_.map(candidates, "verifier")));
+          const knownUsers = claimed.length
+            ? new Set(_.map(await trx("users").select("id").whereIn("id", claimed), "id"))
+            : new Set();
+
+          unknownVouchers = candidates.filter((t) => !voucherExists.has(t.voucher)).length;
+
+          newRows = candidates
+            .filter(
+              (t) =>
+                voucherExists.has(t.voucher) &&
+                !alreadyScanned.has(`${t.voucher}|${t.category}`) &&
+                !idsTaken.has(t.id),
+            )
+            .map((t) => ({
+              id: t.id,
+              ticket: t.ticket,
+              verifier: knownUsers.has(t.verifier) ? t.verifier : userId,
+              voucher: t.voucher,
+              category: t.category,
+              transaction: t.tranxaction,
+              active: t.active === undefined ? true : Boolean(t.active),
+              createdAt: toDate(t.createdAt),
+              updatedAt: toDate(t.updatedAt),
+            }));
+
+          for (const chunk of _.chunk(newRows, 500)) {
+            await trx("scanned_tickets").insert(chunk);
+          }
+
+          if (newRows.length) {
+            await trx("vouchers")
+              .update({ status: "used" })
+              .whereIn("id", _.map(newRows, "voucher"));
+          }
         }
+
+        // Server copies the app does not already have. Scoped to the
+        // caller's categories (the old query returned every scan of every
+        // category and verifier).
+        let tickets = [];
+        if (pullCategories === null || pullCategories.length) {
+          const pull = trx("scanned_tickets")
+            .select(
+              "id",
+              "ticket",
+              "verifier",
+              "voucher",
+              "category",
+              "transaction as tranxaction",
+              "active",
+              "createdAt",
+              "updatedAt",
+            )
+            .orderBy("createdAt", "desc");
+
+          if (pullCategories !== null) pull.whereIn("category", pullCategories);
+          if (newRows.length) pull.whereNotIn("voucher", _.map(newRows, "voucher"));
+
+          tickets = await pull;
+        }
+
+        return {
+          message: newRows.length ? "Synced successfully" : "No new tickets to sync",
+          tickets,
+          // malformed, not assigned to the caller, or voucher unknown
+          rejected: incoming.length - wellFormed.length + unknownVouchers,
+        };
       });
 
-      const rawTickets = await Promise.all(unSyncedTickets);
-      //remove null values from array
-
-      const newTickets = _.compact(rawTickets);
-      if (!_.isEmpty(newTickets)) {
-        await transx("scanned_tickets").insert(newTickets);
-
-        const vouchers = _.map(newTickets, "voucher");
-
-        //update vouchers to used
-        await transx("vouchers")
-          .update({
-            status: "used",
-          })
-          .where("id", "IN", vouchers);
-
-        const scannedTickets = await transx("scanned_tickets")
-          .select(
-            "id",
-            "ticket",
-            "verifier",
-            "voucher",
-            "category",
-            "transaction as tranxaction",
-            "active",
-            "createdAt",
-            "updatedAt",
-          )
-          .whereNot("voucher", "IN", vouchers)
-          .orderBy("createdAt", "desc");
-
-        await transx.commit();
-
-        return res
-          .status(200)
-          .json({ message: "Synced successfully", tickets: scannedTickets });
-      } else {
-        await transx.commit();
-
-        return res.status(200).json({
-          message: "No new tickets to sync",
-          tickets: [],
-        });
-      }
+      return res.status(200).json(result);
     } catch (error) {
-      await transx.rollback();
-      console.log(error);
+      logger.error(`Ticket sync failed: ${error?.message}`);
       return res.status(500).json("Syncing Failed! Please try again later.");
     }
   }),
@@ -251,7 +356,9 @@ router.get(
     const user = req.user;
     // console.log(user)
 
-    const { sort, startDate, endDate, verifier } = req.query;
+    const { sort, startDate, endDate } = req.query;
+    // non-admins are always limited to their own scans
+    const verifier = user?.isAdmin ? req.query.verifier : user?.id;
 
     let scannedTickets = [];
 
@@ -335,6 +442,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const { verifierId: id } = req.params;
 
+    if (!req.user.isAdmin && id !== req.user.id) {
+      return res.status(403).json("Forbidden");
+    }
+
     //GET ALL ASSIGNED TICKETS
     const assignedTickets = await knex("tickets")
       .where("verifier", id)
@@ -376,37 +487,34 @@ router.get(
   // verifyScanner,
   asyncHandler(async (req, res) => {
     const user = req.user;
-    const { verifier } = req.query;
-
-    const transx = await knex.transaction();
+    const verifier = user?.isAdmin ? req.query.verifier : user?.id;
 
     let assignedTickets = [];
     let scannedTickets = [];
 
     if (verifier) {
       //GET ALL ASSIGNED TICKETS BY VERIFIER
-      assignedTickets = await transx("vw_ticket_category_user_view")
+      assignedTickets = await knex("vw_ticket_category_user_view")
         .where("verifierId", verifier)
         .select("*");
 
       // GET ALL SCANNED TICKETS BY VERIFIER
-      scannedTickets = await transx("vw_scanned_ticket_voucher_verifier_view")
+      scannedTickets = await knex("vw_scanned_ticket_voucher_verifier_view")
         .where("verifierId", verifier)
         .select("*");
     } else {
       if (user?.isAdmin) {
         //GET ALL ASSIGNED TICKETS
-        assignedTickets = await transx("vw_ticket_category_user_view").select(
+        assignedTickets = await knex("vw_ticket_category_user_view").select(
           "*",
         );
 
         // GET ALL SCANNED TICKETS
-        scannedTickets = await transx(
+        scannedTickets = await knex(
           "vw_scanned_ticket_voucher_verifier_view",
         ).select("*");
       }
     }
-    await transx.commit();
 
     //GET TODAY TRANSACTIONS
     const todayScannedTicket =
@@ -449,7 +557,9 @@ router.get(
   verifyScanner,
   asyncHandler(async (req, res) => {
     const user = req.user;
-    const { sort, startDate, endDate, verifier } = req.query;
+    const { sort, startDate, endDate } = req.query;
+    // non-admins are always limited to their own scans
+    const verifier = user?.isAdmin ? req.query.verifier : user?.id;
 
     let scannedTickets = [];
 
@@ -537,15 +647,18 @@ router.get(
       .where("id", id)
       .first();
 
-    if (_.isEmpty(ticket)) res.status(200).json({});
+    // Not found, or somebody else's assignment: same empty answer. (The old
+    // code kept going after sending {} and crashed destructuring undefined.)
+    if (_.isEmpty(ticket) || (!req.user.isAdmin && ticket.verifierId !== req.user.id)) {
+      return res.status(200).json({});
+    }
 
     const { scope, ...rest } = ticket;
-    const modifiedTicket = {
-      ...rest,
-      type: JSON.parse(scope),
-    };
 
-    res.status(200).json(modifiedTicket);
+    res.status(200).json({
+      ...rest,
+      type: safeJSON(scope),
+    });
   }),
 );
 
@@ -555,22 +668,21 @@ router.get(
   verifyScanner,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-const ticketTypes=[]
 
-    const scannedTickets = await knex("scanned_tickets_vouchers_view")
+    // The original filtered on a misspelt column (`caetgoryId`), so it always
+    // failed. Filtering by the assigned ticket id, as the sibling
+    // /:id/scanned_tickets/verifier/:verifierId route does.
+    const query = knex("scanned_tickets_vouchers_view")
       .select("createdAt", "voucherType", "type", "verifierName")
-      .where({ caetgoryId: id })
-      .limit(5)
-      .orderBy("createdAt", "desc");
+      .where({ ticketId: id })
+      .orderBy("createdAt", "desc")
+      .limit(5);
 
-    if (_.isEmpty(scannedTickets)) {
-      return res.status(200).json({
-        total: 0,
-        scanned: _.repeat("0", ticketTypes?.length),
-      });
+    if (!req.user.isAdmin) {
+      query.andWhere({ verifierId: req.user.id });
     }
 
-    res.status(200).json(scannedTickets);
+    res.status(200).json(await query);
   }),
 );
 
@@ -579,17 +691,17 @@ router.get(
   verifyToken,
   // verifyScanner,
   asyncHandler(async (req, res) => {
-    const { scanner } = req.query;
     const { id } = req.params;
 
-    const transx = await knex.transaction();
-
-    const ticket = await transx("assigned_tickets")
-      .select("scope", "category_id")
+    const ticket = await knex("assigned_tickets")
+      .select("scope", "category_id", "verifier_id")
       .where({ id: id })
       .first();
 
-    if (_.isEmpty(ticket)) {
+    // Own assignment only (admins can pass ?scanner=<verifier id>).
+    const scanner = req.user.isAdmin ? req.query.scanner : req.user.id;
+
+    if (_.isEmpty(ticket) || (!req.user.isAdmin && ticket.verifier_id !== req.user.id)) {
       return res.status(200).json({
         overall: 0,
         total: 0,
@@ -603,7 +715,7 @@ router.get(
     const ticketTypes = JSON.parse(ticket.scope);
 
     //TOTAL TICKETS IN SYSTEM
-    const vouchers = await transx("vouchers")
+    const vouchers = await knex("vouchers")
       .select("id", "type")
       .where({ category_id: ticket?.category_id, status: "sold" })
       .orWhere({ category_id: ticket?.category_id, status: "used" });
@@ -613,14 +725,12 @@ router.get(
     //  console.log(assignedVouchers)
 
     //GET ALL TICKETS SCANNED  BY CATEGORY
-    const scannedTicketsByCategory = await transx(
+    const scannedTicketsByCategory = await knex(
       "vw_scanned_ticket_voucher_verifier_view",
     )
       .select("*")
       .where({ categoryId: ticket?.category_id })
       .orderBy("createdAt", "desc");
-
-    await transx.commit();
 
     //GET ALL TICKETS SCANNED BY VERIFIER
     const scannedTickets = scannedTicketsByCategory?.filter(
@@ -691,6 +801,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const { verifierId, id } = req.params;
 
+    if (!req.user.isAdmin && verifierId !== req.user.id) {
+      return res.status(403).json("Forbidden");
+    }
+
     if (verifierId) {
       const scannedTicketByVerifier = await knex(
         "scanned_tickets_vouchers_view",
@@ -749,89 +863,161 @@ router.post(
   }),
 );
 
+// Verify (scan) a ticket online.
+//   body: { id: <transaction id>, ticket: <voucher id>, ticketID: <assigned ticket id>, category }
+// The verifier is the signed-in user. `token` in the body is no longer
+// required (old app builds still send it; it is ignored).
 router.post(
   "/verify",
   verifyToken,
   verifyScanner,
   asyncHandler(async (req, res) => {
-    const { id: userID } = req.user;
-    const { id, ticket, ticketID, category, token } = req.body;
+    const { id: userID, isAdmin } = req.user;
+    const { id, ticket, ticketID, category } = req.body ?? {};
 
-    if (!ticket || !id || !token) {
+    if (
+      !isNonEmptyString(ticket) ||
+      !isNonEmptyString(id) ||
+      !isNonEmptyString(ticketID) ||
+      !isNonEmptyString(category)
+    ) {
       return res.status(400).json("Error! Ticket not available.");
     }
 
-    //find transaction with voucher id
-    const scannedTicket = await knex("scanned_tickets").where({
-      voucher: ticket?.toString(),
-    });
+    const voucherId = ticket.trim();
+    const transactionId = id.trim();
 
-    if (!_.isEmpty(scannedTicket)) {
-      const verifiedTicket = await knex("scanned_tickets_vouchers_view")
-        .where({
-          voucherId: ticket,
-        })
+    // The signed-in verifier must be assigned to this ticket / category.
+    let allowedTypes = null;
+    if (!isAdmin) {
+      const assignment = await knex("assigned_tickets")
+        .select("id", "scope")
+        .where({ id: ticketID, verifier_id: userID, category_id: category })
         .first();
-      verifiedTicket.isVerified = true;
-      return res.status(200).json(verifiedTicket);
+
+      if (_.isEmpty(assignment)) {
+        return res.status(403).json("You are not assigned to verify this ticket.");
+      }
+
+      const scope = parseJSON(assignment.scope, []);
+      allowedTypes = (Array.isArray(scope) ? scope : []).map((s) => s?.type ?? s);
     }
 
-    const transx = await knex.transaction();
     try {
-      //find transaction with  id
-      const transaction = await transx("voucher_transactions")
-        .select("id", "email", "phonenumber", "vouchers", "info")
-        .where("id", id)
-        .limit(1)
-        .first();
+      const outcome = await knex.transaction(async (trx) => {
+        // Lock the voucher row so two scanners cannot verify it at once.
+        const voucher = await trx("vouchers")
+          .select("id", "type", "status")
+          .where("id", voucherId)
+          .forUpdate()
+          .first();
 
-      if (_.isEmpty(transaction)) {
-        await transx.commit();
-        return res.status(400).json("Ticket not found!");
-      }
-      //update transaction with voucher id
-      const categoryId = JSON.parse(transaction?.info)?.categoryId;
+        if (_.isEmpty(voucher)) {
+          return { status: 400, body: "Ticket not found!" };
+        }
 
-      if (category !== categoryId) {
-        await transx.commit();
-        return res.status(400).json("Not a valid ticket!");
-      }
+        // Already scanned -> report who/when, do not scan again.
+        const existing = await trx("scanned_tickets")
+          .where({ voucher: voucherId })
+          .first();
+        if (!_.isEmpty(existing)) {
+          return {
+            status: 200,
+            body: await buildVerifiedResponse(trx, voucherId, existing),
+          };
+        }
 
-      await transx("vouchers")
-        .update({
-          status: "used",
-        })
-        .where("id", ticket);
+        if (!["sold", "used"].includes(voucher.status)) {
+          return { status: 400, body: "Not a valid ticket!" };
+        }
 
-      await transx("scanned_tickets").insert({
-        id: generateId(6),
-        ticket: ticketID,
-        verifier: userID,
-        voucher: ticket,
-        category: categoryId,
-        transaction: id,
+        const transaction = await trx("voucher_transactions")
+          .select("id", "vouchers", "info")
+          .where("id", transactionId)
+          .first();
+
+        if (_.isEmpty(transaction)) {
+          return { status: 400, body: "Ticket not found!" };
+        }
+
+        const categoryId = parseJSON(transaction.info, {})?.categoryId;
+        if (category !== categoryId) {
+          return { status: 400, body: "Not a valid ticket!" };
+        }
+
+        // The QR carries a transaction id and a voucher id: the voucher must
+        // really belong to that transaction.
+        if (!transactionIncludesVoucher(transaction.vouchers, voucherId)) {
+          logger.warn(
+            `verify: voucher ${voucherId} is not in transaction ${transactionId} (user ${userID})`,
+          );
+          return { status: 400, body: "Not a valid ticket!" };
+        }
+
+        // Ticket type must be inside the verifier's assigned scope (the
+        // offline flow already enforces this). Log-only unless
+        // ENFORCE_TICKET_SCOPE=true.
+        if (allowedTypes && !allowedTypes.includes(voucher.type)) {
+          logger.warn(
+            `verify: ${userID} not scoped for type ${voucher.type} (ticket ${ticketID})`,
+          );
+          if (flagOn("ENFORCE_TICKET_SCOPE")) {
+            return {
+              status: 403,
+              body: `You are not authorized to verify ${voucher.type} tickets.`,
+            };
+          }
+        }
+
+        await trx("vouchers").update({ status: "used" }).where("id", voucherId);
+
+        let inserted = false;
+        for (let attempt = 0; attempt < 3 && !inserted; attempt += 1) {
+          try {
+            await trx("scanned_tickets").insert({
+              id: generateId(6),
+              ticket: ticketID,
+              verifier: userID,
+              voucher: voucherId,
+              category: categoryId,
+              transaction: transactionId,
+            });
+            inserted = true;
+          } catch (error) {
+            if (error?.code !== "ER_DUP_ENTRY") throw error;
+
+            // a unique index on voucher caught a concurrent scan ...
+            const raced = await trx("scanned_tickets")
+              .where({ voucher: voucherId })
+              .first();
+            if (!_.isEmpty(raced)) {
+              return {
+                status: 200,
+                body: await buildVerifiedResponse(trx, voucherId, raced),
+              };
+            }
+            // ... otherwise it was a primary-key clash: retry with a new id
+          }
+        }
+        if (!inserted) throw new Error("Could not allocate a scan id");
+
+        const scannedTicket = await trx("scanned_tickets_vouchers_view")
+          .select("*")
+          .where("voucherId", voucherId)
+          .first();
+
+        if (_.isEmpty(scannedTicket)) {
+          throw new Error("Scan saved but not visible in scanned_tickets_vouchers_view");
+        }
+
+        // The customer's e-mail / phone number used to be returned here. The
+        // app never displays them, so they are no longer sent to scanners.
+        return { status: 200, body: { ...scannedTicket, isVerified: false } };
       });
 
-      //find tranasction with specific payment id
-      const scannedTicket = await transx("scanned_tickets_vouchers_view")
-        .select("*")
-        .where("voucherId", ticket)
-        .limit(1)
-        .first();
-
-      const modifiedVoucher = {
-        ...scannedTicket,
-        phonenumber: transaction.phonenumber,
-        email: transaction.email,
-        isVerified: false,
-      };
-
-      await transx.commit();
-
-      return res.status(200).json(modifiedVoucher);
+      return res.status(outcome.status).json(outcome.body);
     } catch (error) {
-      await transx.rollback();
-      console.log(error);
+      logger.error(`Ticket verification failed: ${error?.message}`);
       return res
         .status(500)
         .json("Error verifying your ticket! Please try again later.");
@@ -843,7 +1029,7 @@ router.post(
 router.put(
   "/account",
   verifyToken,
-  verifyScanner,
+  verifyAdmin,
   asyncHandler(async (req, res) => {
     const { id: userID } = req.user;
     const { id, active } = req.body;

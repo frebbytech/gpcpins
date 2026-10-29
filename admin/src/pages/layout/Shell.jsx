@@ -355,6 +355,7 @@ function Shell() {
 
           <Route path="logs" element={withSuspense(Logs)} />
           <Route path="roles" element={withSuspense(RolesList)} />
+   
         </Route>
 
         <Route path="auth" element={<User/>}>

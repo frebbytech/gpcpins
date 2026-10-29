@@ -34,7 +34,7 @@ const rolesRoute = require("./routes/rolesRoute");
 const broadcastMessageRoute = require("./routes/broadcastMessageRoute");
 const notificationRoute = require("./routes/notificationRoute");
 const complaintRoute = require("./routes/complaintRoute");
-
+const siteSettingsRoute = require("./routes/admin/siteSettingsRoute");
 //brasicca
 const billerRoute = require("./routes/brassica/billers.js");
 const billerPaymentsRoute = require("./routes/brassica/payments.js");
@@ -270,6 +270,7 @@ app.use("/api/gabs/v1/broadcast-messages", verifyToken, broadcastMessageRoute);
 app.use("/api/gabs/v1/billers", billerRoute);
 app.use("/api/gabs/v1/biller/payments", billerPaymentsRoute);
 app.use("/api/gabs/v1/ecg", ecgRoute);
+app.use("/api/gabs/v1/site-settings", siteSettingsRoute);
 
 // Health check endpoint
 app.get("/api/gabs/v1/health", (req, res) => {

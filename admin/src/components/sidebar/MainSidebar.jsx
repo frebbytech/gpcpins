@@ -154,6 +154,7 @@ function MainSidebar() {
         onNavigate={onNavigate}
       />
       {user?.permissions?.includes("Settings") && (
+     <>
         <SidebarLink
           to="settings"
           title="Settings"
@@ -161,6 +162,11 @@ function MainSidebar() {
           collapsed={isCollapsed}
           onNavigate={onNavigate}
         />
+
+        
+     
+     
+     </>
       )}
     </List>
   );
