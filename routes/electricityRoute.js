@@ -21,6 +21,7 @@ const { sendPrepaidEmail } = require("../config/mail");
 const currencyFormatter = require("../config/currencyFormatter");
 const {
   prepareBrassicaECollectPrepaidCharge,
+  triggerPowerChargeCallback,
 } = require("./brassica/brasiccaMoney");
 
 const limit = rateLimit({
@@ -188,6 +189,7 @@ router.get(
         amount: paymentPayload?.paymentDetails?.amount,
         meterId: paymentPayload?.paymentDetails?.accountReferenceId,
         accountNumber: paymentPayload?.paymentDetails?.altAccountNumber,
+        meterProvider: paymentPayload?.paymentDetails?.serviceProviderName,
         mobileNumber: paymentPayload?.billRequest?.phoneNumber,
         meterNumber: paymentPayload?.billRequest?.accountNumber,
         regionId: paymentPayload?.paymentDetails?.serviceRegionId,
@@ -202,10 +204,25 @@ router.get(
         paymentResponse?.message !== "Success" ||
         paymentResponse?.code !== 0
       ) {
-        console.log(paymentResponse);
+        console.log("Failed to process payment response:", paymentResponse);
+
+        const res = await triggerPowerChargeCallback({
+          asyncId: paymentPayload?.billRequest?.asyncRequestId,
+          transactionId: paymentPayload?.billRequest?.transactionId,
+          status: "Failed",
+        });
+
+        console.log("Failed Callback response:", res);
 
         return res.status(422).json({ message: "Provider transaction failed" });
       }
+
+     const res= await triggerPowerChargeCallback({
+        asyncId: paymentPayload?.billRequest?.asyncRequestId,
+        transactionId: paymentPayload?.billRequest?.transactionId,
+        status: "Successful",
+      });
+      console.log("Successful Callback response:", res);
 
       const responseDetails = paymentResponse || {};
 
@@ -290,7 +307,7 @@ router.get(
       });
     } catch (apiError) {
       logger.error("[ECGPay API Error]:", apiError);
-       console.log(apiError);
+      console.log(apiError);
       return res.status(422).json({ message: "Provider transaction failed" });
     }
   }),

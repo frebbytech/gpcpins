@@ -200,42 +200,42 @@ async function _authenticate() {
   const url = `${config.brassicaPmt.baseURL}/api/Auth`;
   logger.info("[PmtTokenManager] Refreshing Brassica PMT token…");
 
-  // let res;
-  // try {
-  //   res = await axios.post(
-  //     url,
-  //     {
-  //       apiUser: config.brassicaPmt.apiUser,
-  //       apiKey: config.brassicaPmt.apiKey,
-  //     },
-  //     {
-  //       timeout: config.brassicaPmt.timeout,
-  //       headers: { "Content-Type": "application/json" },
-  //     },
-  //   );
-  // } catch (err) {
-  //   const msg =
-  //     err.response?.data?.message || err.message || "Auth request failed";
-  //   throw new AppError(
-  //     `Brassica PMT auth failed: ${msg}`,
-  //     502,
-  //     null,
-  //     "brassica_pmt",
-  //   );
-  // }
+  let res;
+  try {
+    res = await axios.post(
+      url,
+      {
+        apiUser: config.brassicaPmt.apiUser,
+        apiKey: config.brassicaPmt.apiKey,
+      },
+      {
+        timeout: config.brassicaPmt.timeout,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  } catch (err) {
+    const msg =
+      err.response?.data?.message || err.message || "Auth request failed";
+    throw new AppError(
+      `Brassica PMT auth failed: ${msg}`,
+      502,
+      null,
+      "brassica_pmt",
+    );
+  }
 
-  // const { token, respCode, respDesc } = res.data || {};
+  const { token, respCode, respDesc } = res.data || {};
 
-  // if (respCode !== "200" || !token) {
-  //   throw new AppError(
-  //     `Brassica PMT auth rejected: ${respDesc || "unknown"}`,
-  //     502,
-  //     respCode,
-  //     "brassica_pmt",
-  //   );
-  // }
+  if (respCode !== "200" || !token) {
+    throw new AppError(
+      `Brassica PMT auth rejected: ${respDesc || "unknown"}`,
+      502,
+      respCode,
+      "brassica_pmt",
+    );
+  }
 
-  const token=""
+  // const token=""
 
   // ── Persist to Redis ────────────────────────────────────────────────────────
   // TTL in seconds (Redis EX flag).  We use tokenTTL - 120 s so the key expires

@@ -1,12 +1,31 @@
-import { saveAccessToken, saveToken } from "../config/sessionHandler";
+import axios from "axios";
+import { saveAccessToken, saveToken, getToken } from "../config/sessionHandler";
 import api from "./customAxios";
 
+const BASE_URL = import.meta.env.VITE_BASE_URL;
 
+export const getVerifier = async () => {
+  const token = getToken();
+  try {
+    const res = await axios({
+      method: "GET",
+      url: `${BASE_URL}/verifiers/auth`,
+      withCredentials: true,
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+    });
+
+    return res.data;
+  } catch (error) {
+    throw error.response.data;
+  }
+};
 
 export const getAllVerifiers = async () => {
   try {
     const res = await api({
-      method: 'GET',
+      method: "GET",
       url: `/verifiers`,
     });
 
@@ -18,7 +37,7 @@ export const getAllVerifiers = async () => {
 export const getVerifierByID = async (id) => {
   try {
     const res = await api({
-      method: 'GET',
+      method: "GET",
       url: `/verifiers/${id}`,
     });
 
@@ -28,30 +47,27 @@ export const getVerifierByID = async (id) => {
   }
 };
 
-
-
-
 export const addVerifier = async (verifier) => {
   const formData = new FormData();
-  formData.append('profile', verifier.profile);
-  formData.append('firstname', verifier.firstname);
-  formData.append('lastname', verifier.lastname);
-  formData.append('username', verifier.username);
-  formData.append('email', verifier.email);
-  formData.append('dob', verifier.dob);
-  formData.append('residence', verifier.residence);
-  formData.append('nid', verifier.nid);
-  formData.append('phonenumber', verifier.phonenumber);
-  formData.append('role', verifier.role);
-  formData.append('isAdmin', verifier.isAdmin);
-  formData.append('password', verifier.password);
+  formData.append("profile", verifier.profile);
+  formData.append("firstname", verifier.firstname);
+  formData.append("lastname", verifier.lastname);
+  formData.append("username", verifier.username);
+  formData.append("email", verifier.email);
+  formData.append("dob", verifier.dob);
+  formData.append("residence", verifier.residence);
+  formData.append("nid", verifier.nid);
+  formData.append("phonenumber", verifier.phonenumber);
+  formData.append("role", verifier.role);
+  formData.append("isAdmin", verifier.isAdmin);
+  formData.append("password", verifier.password);
 
   try {
     const res = await api({
-      method: 'POST',
+      method: "POST",
       url: `/verifiers`,
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
       data: formData,
     });
@@ -61,7 +77,6 @@ export const addVerifier = async (verifier) => {
     throw error.response.data;
   }
 };
-
 
 export const loginVerifier = async (verifierInfo) => {
   try {
@@ -114,7 +129,6 @@ export const verifyVerifierOTP = async (data) => {
     });
 
     saveToken(res.data?.accessToken, res.data?.refreshToken);
-
 
     return res.data;
   } catch (error) {
@@ -182,7 +196,6 @@ export const putVerifierPassword = async (updatedVerifier) => {
 
     saveToken(res.data?.accessToken, res.data?.refreshToken);
 
-
     return res.data;
   } catch (error) {
     throw error.response.data;
@@ -198,7 +211,6 @@ export const putVerifierResetPasswordLink = async (data) => {
     });
 
     saveToken(res.data?.accessToken, res.data?.refreshToken);
-
 
     return res.data;
   } catch (error) {
@@ -233,7 +245,6 @@ export const enableOrDisableAccount = async (info) => {
   }
 };
 
-
 export const getPhoneNumberToken = async ({ token }) => {
   try {
     const res = await api({
@@ -250,16 +261,12 @@ export const getPhoneNumberToken = async ({ token }) => {
   }
 };
 
-
 export const verifyUserIdentity = async (data) => {
-
   try {
     const res = await api({
       method: "GET",
       url: `/verifiers/verify-identity`,
-      params: {
-        ...data
-      }
+      body:data
     });
 
     saveToken(res.data?.accessToken, res.data?.refreshToken);
@@ -272,7 +279,7 @@ export const verifyUserIdentity = async (data) => {
 export const removeVerifier = async ({ id }) => {
   try {
     const res = await api({
-      method: 'DELETE',
+      method: "DELETE",
       url: `/verifiers/${id}`,
     });
 
@@ -281,5 +288,3 @@ export const removeVerifier = async ({ id }) => {
     throw error.response.data;
   }
 };
-
-

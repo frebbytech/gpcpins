@@ -365,7 +365,7 @@ router.post(
       sameSite: "lax", // same-site in both dev and prod, no need for "none"
       path: "/api/gabs/v1/auth/token",
       maxAge: expiresMs,
-      name: "USSIDR",
+      name: "SSIDR",
       signed: true,
     });
 

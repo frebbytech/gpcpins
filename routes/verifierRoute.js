@@ -11,6 +11,7 @@ const sendMail = require("../config/sendEmail");
 const {
   verifyToken,
   verifyRefreshToken,
+  removeUser,
 } = require("../middlewares/verifyToken");
 const { isValidUUID2 } = require("../config/validation");
 const verifyScanner = require("../middlewares/verifyScanner");
@@ -49,7 +50,8 @@ const ROLE_CODES = () => [process.env.ADMIN_ID, process.env.SCANNER_ID];
 // Finds an ADMIN/SCANNER account by email or phone number.
 const findAccount = async (db, { contact, type }) => {
   if (!isNonEmptyString(contact)) return null;
-  const column = type === "phone" ? "phonenumber" : type === "email" ? "email" : null;
+  const column =
+    type === "phone" ? "phonenumber" : type === "email" ? "email" : null;
   if (!column) return null;
 
   const user = await db("users")
@@ -80,12 +82,13 @@ const { sendOTPSMS } = require("../config/sms");
 const generateId = require("../config/generateId");
 const { getVerifier } = require("./users/authUsers");
 const generateRandomNumber = require("../config/generateRandomCode");
-const redisClient = require("../config/redisClient");
 const verifyAdmin = require("../middlewares/verifyAdmin");
 const { verifyOTP, storeOTP } = require("../services/otp.services");
 const { safeJSON } = require("../config/helpers");
 const generateDeviceId = require("../utils/deviceFingerprint");
 const logger = require("../utils/logger");
+const { getExpiryTimeByRole } = require("../utils/helper");
+const { parseTimeToMs } = require("../utils/time");
 
 const Storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -142,14 +145,53 @@ router.get(
 );
 
 router.get(
+  "/auth",
+  verifyToken,
+  asyncHandler(async (req, res) => {
+    const { id } = req.user;
+
+    if (!isValidUUID2(id)) {
+      return res.status(400).json("Invalid ID!");
+    }
+
+    const user = await knex("vw_users_with_roles")
+      .select("*")
+      .where("id", id)
+      .whereNot("email", "customer@gpcpins.com")
+      .first();
+
+    if (
+      _.isEmpty(user) ||
+      Boolean(user?.active) === false ||
+      user?.email === "customer@gpcpins.com"
+    ) {
+      return res.sendStatus(204);
+    }
+
+    res.status(200).json({
+      user: {
+        id: user?.id,
+        firstname: user?.firstname,
+        lastname: user?.lastname,
+        name: user?.name,
+        email: user?.email,
+        role: user?.role,
+        nid: user?.nid,
+        dob: user?.dob,
+        phonenumber: user?.phonenumber,
+        profile: user?.profile,
+        active: Boolean(user?.active),
+      },
+    });
+  }),
+);
+
+router.get(
   "/auth/token",
   limit,
   verifyRefreshToken,
   asyncHandler(async (req, res) => {
-    const { id } = req.user;
-
-    const verifier = await getVerifier(id);
-    const accessToken = await signMainToken(verifier, "180d");
+    const accessToken = req.accessToken;
 
     res.status(200).json({
       accessToken,
@@ -187,7 +229,9 @@ router.post(
     if (!isNonEmptyString(nid) && !isNonEmptyString(dob)) {
       return res
         .status(400)
-        .json("Please provide either National ID (nid) or Date of Birth (dob).");
+        .json(
+          "Please provide either National ID (nid) or Date of Birth (dob).",
+        );
     }
 
     const stored = await knex("users")
@@ -196,20 +240,26 @@ router.post(
       .first();
 
     if (!stored) {
-      return res.status(400).json("Unable to verify identity. Please contact support.");
+      return res
+        .status(400)
+        .json("Unable to verify identity. Please contact support.");
     }
 
     if (isNonEmptyString(nid)) {
       if (!stored.nid || !safeEqual(nid, stored.nid)) {
         logger.warn(`Identity verification failed for user ${req.user.id}`);
-        return res.status(400).json("The details provided do not match our records.");
+        return res
+          .status(400)
+          .json("The details provided do not match our records.");
       }
     }
 
     if (isNonEmptyString(dob)) {
       if (!stored.dob || !moment(dob).isSame(moment(stored.dob), "day")) {
         logger.warn(`Identity verification failed for user ${req.user.id}`);
-        return res.status(400).json("The details provided do not match our records.");
+        return res
+          .status(400)
+          .json("The details provided do not match our records.");
       }
     }
 
@@ -287,14 +337,12 @@ router.get(
       })
       .first();
 
-
-
     if (_.isEmpty(verifier)) {
       return res.status(400).json({});
     }
 
-    const { permissions ,...rest } = verifier;
-    delete rest.role
+    const { permissions, ...rest } = verifier;
+    delete rest.role;
 
     const modifiedVerifier = {
       ...rest,
@@ -403,8 +451,6 @@ router.post(
       await transx.commit();
       res.status(201).json("Verifier saved successfully!!!");
 
-
-
       setImmediate(async () => {
         // console.log('email', newVerifier?.email);
         // console.log('passwrod', password);
@@ -439,7 +485,7 @@ router.post(
       });
     } catch (error) {
       await transx.rollback();
-logger.error(`"An error has occurred.Try again later"-${error?.message}`);
+      logger.error(`"An error has occurred.Try again later"-${error?.message}`);
       return res.status(400).json("An error has occurred.Try again later");
     }
   }),
@@ -573,6 +619,8 @@ router.post(
   asyncHandler(async (req, res) => {
     const { id, email, contact, type, token, reset } = req.body ?? {};
 
+    console.log(req.body);
+
     if (!token || Number.isNaN(Number(token))) {
       return res.status(400).json("Invalid Code");
     }
@@ -610,6 +658,7 @@ router.post(
     }
 
     const result = await verifyOTP(id, Number(token));
+    console.log(result);
 
     if (!result.success) {
       return res.status(400).json("Invalid Code");
@@ -651,10 +700,8 @@ router.post(
     }
 
     const updatedUser = {
-      id: user?.id,
+      sub: user?.id,
       role: user?.role,
-      active: Boolean(user?.active),
-      createdAt: user?.created_at,
     };
     const deviceId = generateDeviceId(req);
 
@@ -666,17 +713,17 @@ router.post(
       user_agent: req.headers["user-agent"],
     });
 
-    const accessToken = await signMainToken(accessData, "180d");
-    const refreshToken = signMainRefreshToken(updatedUser, "365d");
+    const accessToken = await signMainToken(updatedUser, accessData);
+    const refreshToken = signMainRefreshToken(updatedUser);
 
-    const expires = new Date();
-    expires.setDate(expires.getDate() + 7);
+    const expires = getExpiryTimeByRole(user?.role).refreshTime;
+    const expiresMs = parseTimeToMs(expires);
 
     await knex("user_tokens").insert({
       user_id: user.id,
       session_id: sessionId,
       refresh_token: refreshToken,
-      expiresAt: expires,
+      expiresAt: new Date(expiresMs * 1000),
     });
     //logs
     await knex("activity_logs").insert({
@@ -684,17 +731,21 @@ router.post(
       title: "Logged into account.",
       severity: "info",
     });
+    const isProduction = process.env.NODE_ENV === "production";
 
-    res.cookie("refreshToken", refreshToken, {
+    res.cookie("SSIDV", refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "Strict",
-      path: "/verifiers/auth/token",
+      secure: isProduction, // true in prod (required over HTTPS), false in dev (http)
+      sameSite: "lax", // same-site in both dev and prod, no need for "none"
+      path: "/api/gabs/v1/auth/token",
+      maxAge: expiresMs,
+      name: "SSIDV",
+      signed: true,
     });
 
     res.status(201).json({
-      refreshToken,
       accessToken,
+      user: accessData,
     });
   }),
 );
@@ -703,13 +754,11 @@ router.post(
   "/logout",
   verifyToken,
   asyncHandler(async (req, res) => {
-    const { id, jti } = req.user;
+    const { sub: id } = req.authUser;
 
-    res.clearCookie("refreshToken");
+    res.clearCookie("SSIDV");
 
-    await knex("user_tokens")
-      .where({ user_id: id })
-      .update({ is_revoked: true });
+    await removeUser(id);
 
     await knex("activity_logs").insert({
       user_id: id,
@@ -717,10 +766,10 @@ router.post(
       severity: "info",
     });
 
-    await redisClient.del(`user:${jti}`);
-
+    req.authUser = null;
     req.user = null;
     delete req.user;
+    delete req.authUser;
 
     res.sendStatus(204);
   }),
@@ -850,7 +899,13 @@ router.put(
 
     const user = await knex("users")
       .join("roles", "users.role_id", "roles.id")
-      .select("users.id", "users.password", "users.active", "users.is_enabled", "roles.code")
+      .select(
+        "users.id",
+        "users.password",
+        "users.active",
+        "users.is_enabled",
+        "roles.code",
+      )
       .where("users.id", id)
       .first();
 
@@ -1080,7 +1135,9 @@ router.delete(
       if (error?.code === "ER_ROW_IS_REFERENCED_2") {
         return res
           .status(409)
-          .json("This verifier has activity on record. Disable the account instead.");
+          .json(
+            "This verifier has activity on record. Disable the account instead.",
+          );
       }
       throw error;
     }

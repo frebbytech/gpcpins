@@ -1,3 +1,4 @@
+const { safeJSON } = require("../../config/helpers");
 const knex = require("../../db/knex");
 
 async function getVerifier(id) {

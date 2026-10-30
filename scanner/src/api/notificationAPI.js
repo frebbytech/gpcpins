@@ -4,7 +4,7 @@ export const getAllNotifications = async (title) => {
   try {
     const res = await api({
       method: 'GET',
-      url: `/notifications/verifer`,
+      url: `/notifications/user`,
       params: {
         title
       }

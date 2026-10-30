@@ -1038,7 +1038,7 @@ router.post(
 
     // 2. Prepare Identifiers & Payload
 
-    const paymentId = generateId();
+    // const paymentId = generateId();
     const transaction_id = generateId(6);
     const transaction_reference = randomBytes(24).toString("hex");
     let asyncRequestId = uuidv4();
@@ -1106,8 +1106,10 @@ router.post(
           phoneNumber: userPhone,
           asyncRequestId: asyncId,
         });
+
         asyncRequestId = asyncId;
       } catch (error) {
+        logger.error("[ECGPay API Error]:", error);
         return res
           .status(400)
           .json("Error processing transaction.Please try again later!");
@@ -1145,7 +1147,7 @@ router.post(
 
     try {
       await transx("payments").insert({
-        id: paymentId,
+        id: transaction_id,
         user_id: userID,
         reference: transaction_reference,
         service: "prepaid",
@@ -1162,7 +1164,7 @@ router.post(
 
       await transx("electricity_transactions").insert({
         id: transaction_id,
-        payment_id: paymentId,
+        payment_id: transaction_id,
         meter_id: meter,
         charges: 0,
         topup: amountChargeValue(amount),
@@ -1175,7 +1177,7 @@ router.post(
       res.status(201).json({
         success: true,
         message: "Payment received and is being processed.",
-        paymentId: paymentId,
+        paymentId: transaction_id,
         transactionId: transaction_id,
       });
     } catch (dbError) {

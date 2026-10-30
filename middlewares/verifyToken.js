@@ -17,6 +17,7 @@ const getPermissions = async (roleId) => {
   return perms;
 };
 
+
 const verifyToken = (req, res, next) => {
   req.user = null;
 
@@ -113,6 +114,9 @@ const verifyRefreshToken = async (req, res, next) => {
   } else if (origin.includes("agent.gpcpins.com")) {
     // If it's the agent panel, look ONLY for the agent cookie
     cookieToken = req.signedCookies.RSSIDR;
+  } else if (origin.includes("verification.gpcpins.com")) {
+    // If it's the verification panel, look ONLY for the verification cookie
+    cookieToken = req.signedCookies.SSIDV;
   } else if (
     origin.includes("://gpcpins.com") ||
     origin.includes("gpcpins.com")
@@ -124,6 +128,7 @@ const verifyRefreshToken = async (req, res, next) => {
     cookieToken =
       req.signedCookies.SSIDR ||
       req.signedCookies.USSIDR ||
+      req.signedCookies.SSIDV ||
       req.signedCookies.RSSIDR;
   }
 
@@ -140,6 +145,7 @@ const verifyRefreshToken = async (req, res, next) => {
   jwt.verify(cookieToken, process.env.TOKEN_REFRESH, async (err, user) => {
     if (err) {
       res.clearCookie("RSSIDR");
+      res.clearCookie("SSIDV");
       res.clearCookie("SSIDR");
       res.clearCookie("USSIDR");
 
@@ -150,7 +156,9 @@ const verifyRefreshToken = async (req, res, next) => {
       ? "SSIDR"
       : user?.role === process.env.AGENT_ID
         ? "RSSIDR"
-        : "USSIDR";
+        : user?.role === process.env.VERIFIER_ID
+          ? "SSIDV"
+          : "USSIDR";
     let authUser = await knex("vw_users_with_roles")
       .select("*")
       .where("id", user?.sub)
@@ -159,6 +167,7 @@ const verifyRefreshToken = async (req, res, next) => {
     if (Boolean(authUser?.is_enabled) === false) {
       res.clearCookie("SSIDR");
       res.clearCookie("RSSIDR");
+      res.clearCookie("SSIDV");
       res.clearCookie("USSIDR");
       return res.status(403).json("Session has expired.");
     }

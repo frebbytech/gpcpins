@@ -45,9 +45,10 @@ const Login = () => {
     };
 
     mutate(user, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         navigate("/auth/code", {
           state: {
+            id:data?.id,
             email: values?.email,
             password: values?.password,
             path: state?.path,

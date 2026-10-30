@@ -14,10 +14,9 @@ function requireFields(obj, fields) {
     throw new TypeError(`Missing required field(s): ${missing.join(", ")}`);
 }
 
-
 const chargeMeterBlock = (m) => ({
   referenceId: m.meterId,
-  // meterProvider: m.meterProvider, // e.g. "MMS-WASION" (MeterType from getMeterInfo)
+   meterProvider: m.meterProvider, // e.g. "MMS-WASION" (MeterType from getMeterInfo)
   accountNumber: m.accountNumber !== undefined ? String(m.accountNumber) : "",
   mobileNumber: m.mobileNumber ? String(m.mobileNumber) : undefined,
   meterSerial: String(m.meterNumber),
@@ -52,7 +51,7 @@ function chargeBody(p, key) {
       },
       paymentInstrument: {
         paymentMethod: "Mobile",
-        mno: "",
+        mno: "MTN Mobile Money",
         msisdn: p.mobileNumber,
       },
       [key]: chargeMeterBlock(p),
@@ -211,7 +210,9 @@ async function getBrassica3PPTransactionStatus(transactionId, asyncId) {
     return data;
   } catch (err) {
     console.log(err);
-    throw new Error(err?.raw?.message || "Error fetching transaction status", { cause: err });
+    throw new Error(err?.raw?.message || "Error fetching transaction status", {
+      cause: err,
+    });
   }
 }
 async function getBrassicaTransactionStatus(transactionId, transactionType) {
@@ -230,7 +231,9 @@ async function getBrassicaTransactionStatus(transactionId, transactionType) {
     return data;
   } catch (err) {
     console.log(err);
-    throw new Error(err?.raw?.message || "Error fetching transaction status", { cause: err });
+    throw new Error(err?.raw?.message || "Error fetching transaction status", {
+      cause: err,
+    });
   }
 }
 
@@ -291,7 +294,9 @@ async function getBrassicaECollectPrepaidChargeStatus(
     return data;
   } catch (err) {
     console.log(err);
-    throw new Error(err?.raw?.message || "Error fetching transaction status", { cause: err });
+    throw new Error(err?.raw?.message || "Error fetching transaction status", {
+      cause: err,
+    });
   }
 }
 
@@ -310,6 +315,34 @@ async function prepareBrassicaECollectPrepaidCharge(requestBody) {
   };
 }
 
+/**
+ * Triggers the power charge callback to the Brassica PMT service.
+ * @param {Object} params
+ * @param {string} params.asyncId - The async identifier.
+ * @param {string} params.transactionId - The transaction identifier.
+ * @param {'Successful' | 'Failed'} params.status - The status of the transaction.
+ * @returns {Promise<Object>} The data returned from the PMT service.
+ */
+const triggerPowerChargeCallback = async ({
+  asyncId,
+  transactionId,
+  status,
+}) => {
+  logger.info(
+    `[ECG] PowerChargeCallback txId=${transactionId} status=${status}`,
+  );
+
+  const data = await pmtPost("/api/PowerCharge/PowerChargeCallBack", {
+    asyncId,
+    transactionId,
+    merchantCode: config.brassicaPmt.merchantCode,
+    terminalId: config.brassicaPmt.terminalId,
+    status,
+  });
+
+  return data;
+};
+
 module.exports = {
   sendBrassicaMoney,
   send3PPBrassicaMoney,
@@ -319,4 +352,5 @@ module.exports = {
   getBrassicaECollectPrepaidChargeStatus,
   prepareBrassicaECollectPrepaidCharge,
   performPrepaidInquiry,
+  triggerPowerChargeCallback,
 };

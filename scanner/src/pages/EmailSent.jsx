@@ -3,20 +3,20 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import AnimatedContainer from "../components/animations/AnimatedContainer";
 import { LoadingButton } from "@mui/lab";
-import { useContext, useEffect, useState } from "react";
+import {  useEffect, useState } from "react";
 import { verifyCode } from "../config/validation";
 import { useMutation } from "@tanstack/react-query";
-import { AuthContext } from "../context/providers/AuthProvider";
+import { useAuth } from "../context/providers/AuthProvider";
 import { useCustomData } from "../context/providers/CustomProvider";
 import { globalAlertType } from "../components/alert/alertType";
 import { loginVerifier, verifyVerifierOTP } from "../api/verifierAPI";
-import { parseJwt } from "../config/sessionHandler";
+
 
 function EmailSent() {
   const { customDispatch } = useCustomData();
   const navigate = useNavigate();
   const [seconds, setSeconds] = useState(60);
-  const { login } = useContext(AuthContext);
+  const { login } = useAuth();
   const { state } = useLocation();
   const [err, setErr] = useState("");
   const [token, setToken] = useState("");
@@ -56,13 +56,15 @@ function EmailSent() {
     const tokent = DOMPurify.sanitize(token);
 
     const user = {
+      id: state?.id,
       email: email,
       token: tokent,
     };
 
     mutateAsync(user, {
       onSuccess: (data) => {
-        login(parseJwt(data?.accessToken));
+        console.log(data)
+        login(data);
         navigate(state?.path || "/");
       },
       onError: (error) => {
@@ -89,7 +91,7 @@ function EmailSent() {
         onError: (error) => {
           setErr("An unknown error has occured!");
         },
-      }
+      },
     );
   };
 
