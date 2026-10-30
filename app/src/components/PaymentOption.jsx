@@ -179,7 +179,7 @@ function PaymentOption({
           >
             {showMomo && <MobileMoneyOption />}
 
-            {showWallet && <WalletOption />}
+            {/* {showWallet && <WalletOption />} */}
           </RadioGroup>
         </FormControl>
 

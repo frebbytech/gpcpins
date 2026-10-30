@@ -290,11 +290,11 @@ function Sidebar() {
                   </Badge>
                 }
               />
-              <NavLinkItem
+              {/* <NavLinkItem
                 to="wallet"
                 title="Wallet"
                 icon={<WalletOutlined />}
-              />
+              /> */}
               <NavLinkItem
                 to="transactions"
                 title="Transactions"

@@ -50,7 +50,7 @@ const RetrieveVoucherSmall = ({ general }) => {
       open={customState?.search}
       onClose={handleClose}
       fullWidth={true}
-      maxWidth="xs"
+      maxWidth="sm"
       draggable
       color="success"
       PaperProps={{ sx: { borderRadius: 4 } }}
@@ -59,7 +59,7 @@ const RetrieveVoucherSmall = ({ general }) => {
       <DialogContent dividers sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
         <Box>
           <TextField
-            placeholder="Transaction ID OR External Transaction ID"
+            placeholder="Search by Trans. ID , Ext. Trans. ID"
             fullWidth
             size="small"
             error={idErr !== "" ? true : false}
