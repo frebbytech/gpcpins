@@ -206,23 +206,23 @@ router.get(
       ) {
         console.log("Failed to process payment response:", paymentResponse);
 
-        const res = await triggerPowerChargeCallback({
+        const failureResponse = await triggerPowerChargeCallback({
           asyncId: paymentPayload?.billRequest?.asyncRequestId,
           transactionId: paymentPayload?.billRequest?.transactionId,
           status: "Failed",
         });
 
-        console.log("Failed Callback response:", res);
+        console.log("Failed Callback response:", failureResponse);
 
         return res.status(422).json({ message: "Provider transaction failed" });
       }
 
-     const res= await triggerPowerChargeCallback({
+     const successResponse= await triggerPowerChargeCallback({
         asyncId: paymentPayload?.billRequest?.asyncRequestId,
         transactionId: paymentPayload?.billRequest?.transactionId,
         status: "Successful",
       });
-      console.log("Successful Callback response:", res);
+      console.log("Successful Callback response:", successResponse);
 
       const responseDetails = paymentResponse || {};
 

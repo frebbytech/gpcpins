@@ -302,6 +302,7 @@ async function getBrassicaECollectPrepaidChargeStatus(
 
 async function prepareBrassicaECollectPrepaidCharge(requestBody) {
   const { asyncRequestId, body } = chargeBody(requestBody, "meter");
+  console.log(body)
 
   const data = await ecPost("/ECGPrepaidOnlineCharge1", body);
 
