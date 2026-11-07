@@ -78,6 +78,7 @@ async function ecPost(path, body) {
         Referer: config.eCollect.terminalId,
       },
     });
+    
   } catch (err) {
     console.log(err);
     if (err.code === "ECONNABORTED") {

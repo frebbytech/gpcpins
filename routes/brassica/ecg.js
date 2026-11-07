@@ -35,9 +35,25 @@ const { saveMeter } = require("../../services/brassica/token.manager");
 const router = express.Router();
 
 // ─── Shared validators ────────────────────────────────────────────────────────
-const meterNumberValidator = body("meterNumber")
-  .matches(/^\d{8,15}$/)
-  .withMessage("meterNumber must be 8-15 digits.");
+const meterNumberValidator = body('meterNumber')
+    // 1. Trim whitespace
+    .trim()
+    
+    // 2. Check if required (not empty after trim)
+    .notEmpty().withMessage('Required*')
+    
+    // 3. Regex match for allowed characters and length (10-20 chars)
+    .matches(/^[a-zA-Z0-9-]{10,20}$/).withMessage(
+      'Invalid meter Number! Must be 10-20 characters long and can only contain letters, numbers, or dashes.'
+    )
+    
+    // 4. Custom test to ensure it's not just a string of dashes
+    .custom((value) => {
+      if (!/[a-zA-Z0-9]/.test(value)) {
+        throw new Error('Must contain at least one letter or number');
+      }
+      return true;
+    });
 
 const phoneValidator = body("phoneNumber")
   .matches(/^\d{12,13}$/)
@@ -194,9 +210,25 @@ router.post(
     body("paymentChannel")
       .isIn(["MTN", "VODAFONE", "ATMONEY"])
       .withMessage('paymentChannel must be "MTN", "VODAFONE", or "ATMONEY".'),
-    body("meterNumber")
-      .matches(/^\d{8,15}$/)
-      .withMessage("meterNumber must be 8-15 digits."),
+     body('meterNumber')
+    // 1. Trim whitespace
+    .trim()
+    
+    // 2. Check if required (not empty after trim)
+    .notEmpty().withMessage('Required*')
+    
+    // 3. Regex match for allowed characters and length (10-20 chars)
+    .matches(/^[a-zA-Z0-9-]{10,20}$/).withMessage(
+      'Invalid meter Number! Must be 10-20 characters long and can only contain letters, numbers, or dashes.'
+    )
+    
+    // 4. Custom test to ensure it's not just a string of dashes
+    .custom((value) => {
+      if (!/[a-zA-Z0-9]/.test(value)) {
+        throw new Error('Must contain at least one letter or number');
+      }
+      return true;
+    }),
     body("meterType")
       .isIn(["OFFLINE", "ONLINE", "POSTPAID"])
       .withMessage('meterType must be "OFFLINE", "ONLINE", or "POSTPAID".'),

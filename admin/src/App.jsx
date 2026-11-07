@@ -15,6 +15,7 @@ import AuthProvider, { useAuth } from "./context/providers/AuthProvider";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { WhatsAppProvider } from "./whatsapp";
 
 Chart.register(...registerables);
 Chart.register(ChartDataLabels);
@@ -22,8 +23,6 @@ Chart.register(ChartDataLabels);
 const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
 
 function App() {
-
-
   const queryClient = new QueryClient({
     defaultOptions: {
       mutations: {
@@ -37,8 +36,6 @@ function App() {
 
   const { reset } = useQueryErrorResetBoundary();
 
- 
-
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
@@ -46,9 +43,15 @@ function App() {
           <ErrorBoundary FallbackComponent={Error} onReset={reset}>
             <GoogleOAuthProvider clientId={CLIENT_ID}>
               <AuthProvider>
-                <CustomProvider>
-                  <Shell />
-                </CustomProvider>
+                <WhatsAppProvider
+                  tokenUrl={`${import.meta.env.VITE_BASE_URL}/whatsapp/token`}
+                  queryClient={queryClient}
+                 >
+                  <CustomProvider>
+                    <Shell />
+                    {/* <WhatsAppPanel /> */}
+                  </CustomProvider>
+                </WhatsAppProvider>
               </AuthProvider>
             </GoogleOAuthProvider>
           </ErrorBoundary>

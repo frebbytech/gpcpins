@@ -55,6 +55,8 @@ function Prepaid() {
     retry: 1,
   });
 
+  console.log(meter)
+
   const onVerify = (values) => {
     const meterNumber = values?.number?.toUpperCase();
     setSubmittedNumber(meterNumber);

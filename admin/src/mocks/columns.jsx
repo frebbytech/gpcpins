@@ -1479,8 +1479,15 @@ export const transactionsColumns = (type, refund) => [
     field: "id",
   },
   {
-    title: "Ext. Trans. ID",
+    title: "Ext. ID",
     field: "externalTransactionId",
+    // cellStyle: {
+    //   width: 100,
+    // },
+  },
+  {
+    title: "Approval Code",
+    field: "approvalCode",
     // cellStyle: {
     //   width: 100,
     // },

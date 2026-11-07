@@ -274,7 +274,7 @@ router.get(
       console.log(code);
 
       await sendOTPSMS(
-        `Please ignore this message if you did not request the OTP.Your verification code is ${code}.Don't share this code with anyone; Our employees will never ask for the code.If the code is incorrect or expired, you will not be able to proceed. Request a new code if necessary.`,
+        `Please ignore this message if you did not request the OTP.Your verification code is ${code}.`,
         agent[0]?.phonenumber,
       );
     }

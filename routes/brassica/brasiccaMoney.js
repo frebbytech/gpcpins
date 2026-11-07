@@ -33,6 +33,8 @@ function chargeBody(p, key) {
     "regionId",
     "districtId",
   ]);
+
+  
   const asyncRequestId = p.asyncRequestId || uuidv4();
   const callbackURL = config.eCollect.callbackURL;
   if (!callbackURL)
@@ -42,12 +44,13 @@ function chargeBody(p, key) {
   return {
     asyncRequestId,
     body: {
-      merchant: config.brassicaPmt.merchantCode || "ECG",
+      merchant:  "ECG",
       request: { asyncRequestId },
       charge: {
         chargeValue: amountChargeValue(p.amount),
         callbackURL,
         paymentReference: asyncRequestId, // doc: same as asyncRequestId
+        
       },
       paymentInstrument: {
         paymentMethod: "Mobile",

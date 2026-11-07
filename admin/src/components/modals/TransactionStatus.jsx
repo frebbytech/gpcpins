@@ -76,6 +76,8 @@ function TransactionStatus() {
     return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   };
 
+  co
+
   return (
     <Dialog
       maxWidth="sm"
@@ -290,7 +292,7 @@ function TransactionStatus() {
                         value={data.paymentMethod}
                       />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={12}>
                       <DetailItem
                         icon={Receipt}
                         label="Client Reference"

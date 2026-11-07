@@ -168,6 +168,7 @@ const sendPrepaidEmail = async (transaction) => {
         <p>
         Attached to this message,is a copy of your receipt. Please keep it for your records.
         In case units do not load automatically,Please enter the token on your meter to load your units.Thank you!</p>
+        
         `,
     ),
     attachments: [

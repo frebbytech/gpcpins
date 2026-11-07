@@ -235,7 +235,6 @@ router.post(
       <p>Please ignore this message if you did not request the OTP.</p>
         <p>Your verification code is</p>
         <h1>${otp}</h1>
-        <p>If the code is incorrect or expired, you will not be able to proceed. Request a new code if necessary.</p>
 
         <p>-- Gab Powerful Team --</p>
     </div>
@@ -248,7 +247,7 @@ router.post(
         await sendMail(user?.email, mailTextShell(message));
 
         await sendOTPSMS(
-          `Please ignore this message if you did not request the OTP.Your verification code is ${otp}.If the code is incorrect or expired, you will not be able to proceed. Request a new code if necessary.`,
+          `Please ignore this message if you did not request the OTP.Your verification code is ${otp}.`,
           user?.phonenumber,
         );
       });

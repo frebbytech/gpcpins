@@ -1,6 +1,7 @@
 require("dotenv").config({ path: ".env" });
 const asyncHandler = require("express-async-handler");
 const path = require("path");
+const { SignJWT } = require("jose");
 const compression = require("compression");
 const express = require("express");
 const cookieParser = require("cookie-parser");
@@ -62,6 +63,7 @@ require("./workers/voucher.worker");
 require("./workers/airtime.worker");
 require("./workers/bulk-airtime.worker");
 require("./workers/bundle.worker");
+require("./workers/electricity.worker");
 
 // Default server port
 const PORT = process.env.PORT || 5000;
@@ -294,6 +296,18 @@ app.get(
   }),
 );
 
+app.post("/api/gabs/v1/whatsapp/token", verifyToken, async (req, res) => {
+  const { sub: id } = req.authUser;
+
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setSubject(String(id)) // identity comes from YOUR session, never from the request body
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(new TextEncoder().encode(process.env.WHATSAPP_JWT_SECRET)); // = the service's JWT_SECRET
+  res.set("Cache-Control", "no-store").json({ token, expiresIn: 300 });
+});
+
 // Serve frontend in production
 if (NODE_ENV === "production") {
   app.get("/*", function (req, res) {
@@ -303,6 +317,8 @@ if (NODE_ENV === "production") {
 
 // 404 handler
 app.use((req, res, next) => {
+  console.log(`Missing route requested: ${req.method} ${req.url}`);
+  logger.warn(`Missing route requested: ${req.method} ${req.url}`);
   next(createError.NotFound());
 });
 

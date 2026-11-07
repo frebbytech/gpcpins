@@ -3,8 +3,13 @@ import AnimatedContainer from "../../components/animations/AnimatedContainer";
 import AnimatedView from "../../components/animations/AnimatedView";
 import CommunitySVG from "./CommunitySVG";
 import { Link } from "react-router-dom";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 function Community() {
+const { data: siteSettings } = useSiteSettings();
+
+
+
   return (
     <AnimatedView>
       <Box
@@ -51,7 +56,7 @@ function Community() {
             >
               <Link
                 className="primary-btn"
-                to="https://chat.whatsapp.com/LOLI3PEzn31BPAUu017ylx"
+                to={siteSettings?.whatsappGroupLink || "https://chat.whatsapp.com/0029VahKb8g4Crfkw4vis63q"}
                 target="_blank"
               >
                 Join group
@@ -89,7 +94,7 @@ function Community() {
               </Link>
               <Link
                 className="primary-btn"
-                to="https://whatsapp.com/channel/0029VahKb8g4Crfkw4vis63q"
+                to={siteSettings?.whatsappChannelLink || "https://whatsapp.com/channel/0029VahKb8g4Crfkw4vis63q"}
                 target="_blank"
               >
                 FOLLOW Channel

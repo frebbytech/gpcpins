@@ -1034,6 +1034,8 @@ router.post(
       serviceProviderName,
       altAccountNumber,
       accountLookUpId,
+      accountAddress,
+      spn
     } = prepaidMeterPayload;
 
     // 2. Prepare Identifiers & Payload
@@ -1130,11 +1132,13 @@ router.post(
       paymentDetails: {
         amount: amountChargeValue(amount),
         accountLookUpId,
+        spn,
         serviceDistrictId,
         serviceRegionId,
         serviceProviderName,
         accountName,
         accountReferenceId,
+        accountAddress,
         paymentNaration: "Electricity Purchase",
         altAccountNumber,
         paymentBy: userName,

@@ -18,6 +18,8 @@ const parseJSON = (value, fallback = []) => {
 const formatSettings = (row) => ({
   ...row,
   services: parseJSON(row.services),
+  businessPhones: parseJSON(row.businessPhones),
+  officePhones: parseJSON(row.officePhones),
 });
 
 // ─── GET /admin/site-settings ────────────────────────────────────────
@@ -31,16 +33,13 @@ router.get(
   }),
 );
 
+// ─── GET /admin/site-settings/public ─────────────────────────────────
 router.get(
   "/public",
   asyncHandler(async (req, res) => {
     const settings = await knex("site_settings").first();
     if (!settings) return res.status(200).json({});
-    // Parse services JSON
-    res.status(200).json({
-      ...settings,
-      services: settings.services ? JSON.parse(settings.services) : [],
-    });
+    res.status(200).json(formatSettings(settings));
   }),
 );
 
@@ -59,9 +58,18 @@ router.patch(
       about: payload.about,
       services: JSON.stringify(payload.services || []),
       email: payload.email,
-      phone: payload.phone,
-      alternate_phone: payload.alternate_phone,
-      office_phone: payload.office_phone,
+
+      // Phone numbers as JSON arrays
+      businessPhones: JSON.stringify(
+        Array.isArray(payload.businessPhones)
+          ? payload.businessPhones.filter((p) => p && p.trim())
+          : [],
+      ),
+      officePhones: JSON.stringify(
+        Array.isArray(payload.officePhones)
+          ? payload.officePhones.filter((p) => p && p.trim())
+          : [],
+      ),
 
       whatsapp: payload.whatsapp,
       address: payload.address,

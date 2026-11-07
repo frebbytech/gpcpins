@@ -23,6 +23,11 @@ const {
   prepareBrassicaECollectPrepaidCharge,
   triggerPowerChargeCallback,
 } = require("./brassica/brasiccaMoney");
+const {
+  generatePrepaidTemplate,
+} = require("../config/generateVoucherTemplate");
+const { generatePrepaidReceipt } = require("../config/generatePDF");
+const { electricityQueue } = require("../queues/electricity.queue");
 
 const limit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
@@ -107,6 +112,68 @@ router.get(
     });
 
     res.status(200).json(sortedPayments);
+  }),
+);
+
+router.get(
+  "/test-payment/:id",
+  // verifyToken,
+  asyncHandler(async (req, res) => {
+    // 9. Fire Asynchronous Messaging Tasks
+    res.status(200).json({ message: "Test payment route is working!" });
+
+    setImmediate(async () => {
+      try {
+        const transactionId = generateId();
+        const userId = 1024;
+        const paymentReference = "PAY-1234567890";
+        const transaction = {
+          transactionId: transactionId,
+          externalTransactionId: "EXT-1234567890",
+          number: "ACC-987654321",
+          name: "Kwame Mensah",
+          district: "DIST-042",
+          spn: "SPN-001",
+          accountNumber: "ACC-987654321",
+          amount: currencyFormatter(150.0),
+          token: "9384-2049-1182-7463-7678",
+          receiptUrl: "https://yourdomain.com",
+          email: "nicktest701@gmail.com",
+          phonenumber: "+233543772591",
+          userId: 1024,
+          provider: "MTN MoMo",
+          paymentBy: "Customer",
+          status: "completed",
+          createdAt: moment("2026-11-01T18:43:00.000Z").format(
+            "YYYY-MM-DD HH:mm:ss a",
+          ),
+          paymentMethod: "Mobile Money",
+          address: "Block B, Ring Road Central, Accra,22nd Avenue Jamestown Street Amakom 22329872,AShanti Region Ghana.",
+        };
+
+        await electricityQueue.add(
+          "send-electricity",
+          {
+            userId,
+            transactionId,
+            paymentReference,
+            transaction,
+          },
+          {
+            jobId: `test-${transactionId}`,
+            attempts: 3,
+            backoff: {
+              type: "exponential",
+              delay: 5000,
+            },
+            removeOnComplete: 1000,
+            removeOnFail: false,
+          },
+        );
+      } catch (bgError) {
+        logger.error("[ECGPay Background Notification Error]:", bgError);
+      }
+    });
   }),
 );
 
@@ -217,7 +284,7 @@ router.get(
         return res.status(422).json({ message: "Provider transaction failed" });
       }
 
-     const successResponse= await triggerPowerChargeCallback({
+      const successResponse = await triggerPowerChargeCallback({
         asyncId: paymentPayload?.billRequest?.asyncRequestId,
         transactionId: paymentPayload?.billRequest?.transactionId,
         status: "Successful",
@@ -287,9 +354,14 @@ router.get(
         try {
           const transaction = {
             transactionId: responseDetails?.transactionId,
+            externalTransactionId: payment?.externalTransactionId,
             number: paymentPayload?.billRequest?.accountNumber,
+            accountNumber: paymentPayload?.paymentDetails?.altAccountNumber,
             name: paymentPayload?.paymentDetails?.accountName,
-            amount: responseDetails?.amount,
+            district: paymentPayload?.paymentDetails?.serviceDistrictId,
+            address: paymentPayload?.paymentDetails?.accountAddress,
+            spn: paymentPayload?.paymentDetails?.spn,
+            amount: currencyFormatter(responseDetails?.amount || 0),
             token: responseDetails?.rechargeToken,
             receiptUrl: responseDetails?.receiptUrl,
             email: transactionDetails?.email,
@@ -297,10 +369,34 @@ router.get(
               paymentPayload?.billRequest?.phoneNumber ||
               transactionDetails?.phonenumber,
             userId: payment?.user_id,
+            provider: paymentPayload?.pamentDetails?.serviceProviderName,
+            paymentBy: paymentPayload?.pamentDetails?.paymentBy,
             status: "completed",
+            createdAt: moment(payment?.created_at).format(
+              "YYYY-MM-DD HH:mm:ss a",
+            ),
+            paymentMethod: payment?.mode,
           };
 
-          await sendElectricityMessage(transaction);
+          await electricityQueue.add(
+            "send-electricity",
+            {
+              userId: payment?.user_id,
+              transactionId,
+              paymentReference: payment?.reference,
+              transaction,
+            },
+            {
+              jobId: id,
+              attempts: 3,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
+              removeOnComplete: 1000,
+              removeOnFail: false,
+            },
+          );
         } catch (bgError) {
           logger.error("[ECGPay Background Notification Error]:", bgError);
         }

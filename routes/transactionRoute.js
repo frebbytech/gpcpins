@@ -1643,6 +1643,7 @@ router.get(
       return {
         id: t.id,
         externalTransactionId: t?.externalTransactionId,
+        approvalCode: t?.approvalCode,
         type: _.upperCase(`${voucherType} ${info?.domain || ""}`),
         voucherType,
         domain: _.capitalize(t.service),
@@ -1669,6 +1670,7 @@ router.get(
       return {
         id: t?.id,
         externalTransactionId: t?.externalTransactionId,
+        approvalCode: t?.approvalCode,
         type: `${service} Units`,
         domain: service,
         meter: t?.number || partner?.billRequest?.accountNumber,
@@ -1690,6 +1692,7 @@ router.get(
     const airtime = airtimeRows.map((t) => ({
       id: t?.id,
       externalTransactionId: t?.externalTransactionId,
+      approvalCode: t?.approvalCode,
       type: `${t?.domain}`,
       kind: `${t?.kind}`,
       domain: _.capitalize(t?.service),
@@ -1707,6 +1710,7 @@ router.get(
     const bundles = bundleRows.map((t) => ({
       id: t.id,
       externalTransactionId: t?.externalTransactionId,
+      approvalCode: t?.approvalCode,
       type: `${t.domain}`,
       domain: _.capitalize(t.service),
       kind: `${t?.bundleName}`,
@@ -1780,100 +1784,239 @@ router.get(
     }
 
     const intMobileNo = getInternationalMobileFormat(mobileNo);
+    const phoneNumbers = [mobileNo, intMobileNo];
+
+    // Reusable helper function to handle proper SQL WHERE grouping
+    const buildTransactionQuery = (tableName) => {
+      return knex(tableName)
+        .select(
+          "id",
+          "externalTransactionId",
+          "approvalCode",
+          "phonenumber",
+          "mode",
+          "service",
+          "amount",
+          "info",
+          "createdAt",
+          "status",
+        )
+        .whereIn("phonenumber", phoneNumbers)
+        .andWhere(function () {
+          this.where({ id: id })
+            .orWhere({ externalTransactionId: id })
+            .orWhere({ approvalCode: id });
+        })
+        .first();
+    };
 
     try {
-      const [voucherTransaction, prepaidTransaction, airtimeTransaction] =
-        await Promise.all([
-          knex("vw_payments_voucher_transactions")
-            .select(
-              "id",
-              "externalTransactionId",
-              "phonenumber",
-              "mode",
-              "service",
-              "amount",
-              "info",
-              "createdAt",
-              "status",
-            )
-            .where({ id: id })
-            .orWhere({ externalTransactionId: id })
-            .whereIn("phonenumber", [mobileNo, intMobileNo])
-            .first(),
-
-          knex("vw_meter_payment_prepaid_transaction_view")
-            .select(
-              "id",
-              "externalTransactionId",
-              "phonenumber",
-              "mode",
-              "service",
-              "info",
-              "amount",
-              "createdAt",
-              "status",
-            )
-            .where({ id: id })
-            .orWhere({ externalTransactionId: id })
-            .whereIn("phonenumber", [mobileNo, intMobileNo])
-            .first(),
-          knex("vw_payments_airtime_transactions")
-            .select(
-              "id",
-              "externalTransactionId",
-              "phonenumber",
-              "mode",
-              "service",
-              "amount",
-              "info",
-              "amount",
-              "createdAt",
-              "status",
-            )
-            .where({ id: id })
-            .orWhere({ externalTransactionId: id })
-            .whereIn("phonenumber", [mobileNo, intMobileNo])
-            .first(),
-        ]);
-
-      const transaction = _.compact([
+      // 1. Parallelize the initial 4 table lookups
+      const [
         voucherTransaction,
         prepaidTransaction,
         airtimeTransaction,
-      ])[0];
+        bundleTransaction,
+      ] = await Promise.all([
+        buildTransactionQuery("vw_payments_voucher_transactions"),
+        buildTransactionQuery("vw_meter_payment_prepaid_transaction_view"),
+        buildTransactionQuery("vw_payments_airtime_transactions"),
+        buildTransactionQuery("vw_payments_bundle_transactions"),
+      ]);
 
-      if (_.isEmpty(transaction)) {
+      // 2. Efficiently pick the first matching transaction
+      const transaction =
+        voucherTransaction ||
+        prepaidTransaction ||
+        airtimeTransaction ||
+        bundleTransaction;
+
+      if (!transaction) {
         return res.status(400).json("No results match your search!");
       }
+
       const { info, ...rest } = transaction;
       const details = safeJSON(info);
 
-      const category = await knex("categories")
-        .select("name", "type")
-        .where("id", details?.categoryId)
-        .first();
-
-      res.status(200).json({
+      const data = {
         id: rest.id,
         externalTransactionId: rest.externalTransactionId,
+        approvalCode: rest.approvalCode,
         phonenumber: rest.phonenumber,
         mode: rest.mode,
         service: rest.service,
         domain: details?.service,
         status: rest.status,
-        categoryName: category?.name,
-        categoryType: category?.type,
-        amount: rest?.amount,
+        amount: rest.amount,
         downloadLink: details?.downloadLink,
         createdAt: rest.createdAt,
-      });
+        categoryName: "",
+        categoryType: "",
+      };
+
+      // 3. Conditional category lookup if required
+      if (
+        (rest.service === "voucher" || rest.service === "ticket") &&
+        details?.categoryId
+      ) {
+        const category = await knex("categories")
+          .select("name", "type")
+          .where({ id: details.categoryId })
+          .first();
+
+        if (category) {
+          data.categoryName = category.name;
+          data.categoryType = category.type;
+        }
+      }
+
+      return res.status(200).json(data);
     } catch (error) {
+      console.error("General route error:", error); // Use console.error for tracing errors
       return res
         .status(500)
-        .json("An unknown error has occurred.Try again later.");
+        .json("An unknown error has occurred. Try again later.");
     }
   }),
 );
+
+// router.get(
+//   "/general",
+//   limit,
+//   asyncHandler(async (req, res) => {
+//     const { mobileNo, id } = req.query;
+
+//     if (!isValidUUID2(id) || !mobileNo) {
+//       return res.status(400).json("No results match your search");
+//     }
+
+//     const intMobileNo = getInternationalMobileFormat(mobileNo);
+
+//     try {
+//       const [
+//         voucherTransaction,
+//         prepaidTransaction,
+//         airtimeTransaction,
+//         bundleTransaction,
+//       ] = await Promise.all([
+//         knex("vw_payments_voucher_transactions")
+//           .select(
+//             "id",
+//             "externalTransactionId",
+//             "phonenumber",
+//             "mode",
+//             "service",
+//             "amount",
+//             "info",
+//             "createdAt",
+//             "status",
+//           )
+//           .where({ id: id })
+//           .orWhere({ externalTransactionId: id })
+//           .orWhere({ approvalCode: id })
+//           .whereIn("phonenumber", [mobileNo, intMobileNo])
+//           .first(),
+
+//         knex("vw_meter_payment_prepaid_transaction_view")
+//           .select(
+//             "id",
+//             "externalTransactionId",
+//             "phonenumber",
+//             "mode",
+//             "service",
+//             "info",
+//             "amount",
+//             "createdAt",
+//             "status",
+//           )
+//           .where({ id: id })
+//           .orWhere({ externalTransactionId: id })
+//           .orWhere({ approvalCode: id })
+//           .whereIn("phonenumber", [mobileNo, intMobileNo])
+//           .first(),
+//         knex("vw_payments_airtime_transactions")
+//           .select(
+//             "id",
+//             "externalTransactionId",
+//             "phonenumber",
+//             "mode",
+//             "service",
+//             "amount",
+//             "info",
+//             "amount",
+//             "createdAt",
+//             "status",
+//           )
+//           .where({ id: id })
+//           .orWhere({ externalTransactionId: id })
+//           .orWhere({ approvalCode: id })
+//           .whereIn("phonenumber", [mobileNo, intMobileNo])
+//           .first(),
+//         knex("vw_payments_bundle_transactions")
+//           .select(
+//             "id",
+//             "externalTransactionId",
+//             "phonenumber",
+//             "mode",
+//             "service",
+//             "amount",
+//             "info",
+//             "amount",
+//             "createdAt",
+//             "status",
+//           )
+//           .where({ id: id })
+//           .orWhere({ externalTransactionId: id })
+//           .orWhere({ approvalCode: id })
+//           .whereIn("phonenumber", [mobileNo, intMobileNo])
+//           .first(),
+//       ]);
+
+//       const transaction = _.compact([
+//         voucherTransaction,
+//         prepaidTransaction,
+//         airtimeTransaction,
+//         bundleTransaction,
+//       ])[0];
+
+//       if (_.isEmpty(transaction)) {
+//         return res.status(400).json("No results match your search!");
+//       }
+//       const { info, ...rest } = transaction;
+//       const details = safeJSON(info);
+
+//       const data = {
+//         id: rest.id,
+//         externalTransactionId: rest.externalTransactionId,
+//         phonenumber: rest.phonenumber,
+//         mode: rest.mode,
+//         service: rest.service,
+//         domain: details?.service,
+//         status: rest.status,
+//         amount: rest?.amount,
+//         downloadLink: details?.downloadLink,
+//         createdAt: rest.createdAt,
+//       };
+
+//       if (rest.service === "voucher" || rest.service === "ticket") {
+//         const category = await knex("categories")
+//           .select("name", "type")
+//           .where("id", details?.categoryId)
+//           .first();
+
+//         data.categoryName = category?.name;
+//         data.categoryType = category?.type;
+//       }
+
+//       res.status(200).json(data);
+//     } catch (error) {
+//       console.log(error);
+//       return res
+//         .status(500)
+//         .json("An unknown error has occurred.Try again later.");
+//     }
+//   }),
+// );
 
 router.get(
   "/:transactionId",
@@ -1890,6 +2033,7 @@ router.get(
       .select("*")
       .where({ id: transactionId })
       .orWhere({ externalTransactionId: transactionId })
+      .orWhere({ approvalCode: transactionId })
       .andWhere("status", "IN", ["completed", "refunded"])
       .first();
 
@@ -1911,6 +2055,7 @@ router.get(
     res.status(200).json({
       id: rest.id,
       externalTransactionId: rest.externalTransactionId,
+      approvalCode: rest.approvalCode,
       phonenumber: rest.phonenumber,
       email: rest.email,
       mode: rest.mode,
@@ -2133,7 +2278,7 @@ router.post(
   verifyToken,
   verifyAdmin,
   asyncHandler(async (req, res) => {
-    const { id: ISSUER_ID,  } = req.user;
+    const { id: ISSUER_ID } = req.user;
     const {
       id,
       paymentId,

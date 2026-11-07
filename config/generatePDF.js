@@ -25,18 +25,34 @@ const generatePrepaidReceipt = async (htmltext, transaction_id) => {
   //page
   const browser = await getBrowser();
   const page = await browser.newPage();
+
+    await page.setViewport({
+    width: 400,
+    height: 560,
+    deviceScaleFactor: 1
+  });
+    page.setDefaultNavigationTimeout(0);
+
   await page.setContent(htmltext, { waitUntil: "domcontentloaded" });
   // await page.emulateMediaType('screen');
 
   //pdf
   await page.pdf({
-    path: `receipts/${transaction_id}-prepaid.pdf`,
-    format: "A6",
+    path: `receipts/${transaction_id}.pdf`,
+    // format: "A6",
     printBackground: true,
     displayHeaderFooter: true,
+    width: '135mm',        // Standard A6 width
+    height: '180mm',       // Modified custom height (Standard A6 is 148mm)
+    margin: {
+      top: '10mm',
+      bottom: '10mm',
+      left: '10mm',
+      right: '10mm'
+    },
     footerTemplate:
-      '<small style="font-size:9px;font-style:italic;">Powered by Frebbytech Solutions(0543772591)</small>',
-    // timeout: 0,
+      '<small style="font-size:8px;margin-left:3px;font-style:italic;">Powered by Frebbytech Solutions(0543772591)</small>',
+    timeout: 0,
   });
 
   //close browser
