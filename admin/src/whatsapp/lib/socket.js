@@ -34,7 +34,7 @@ export function getSocket() {
     reconnectionDelayMax: 10_000,
     auth: (cb) => {
       getAccessToken()
-        .then((token) => cb({ token }))
+        .then((token) =>cb({ token }))
         .catch(() => cb({ token: "" })); // server rejects; connect_error handles the retry
     },
   });

@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   server: {
     port: 5003,
+    //  proxy: { "/api/gabs/v1/whatsapp/token": "http://localhost:5000" },
   },
   plugins: [react()],
      optimizeDeps: {

@@ -46,6 +46,7 @@ function App() {
                 <WhatsAppProvider
                   tokenUrl={`${import.meta.env.VITE_BASE_URL}/whatsapp/token`}
                   queryClient={queryClient}
+              
                  >
                   <CustomProvider>
                     <Shell />

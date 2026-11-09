@@ -44,7 +44,7 @@ function chargeBody(p, key) {
   return {
     asyncRequestId,
     body: {
-      merchant:  "ECG",
+      merchant:  "TGL",
       request: { asyncRequestId },
       charge: {
         chargeValue: amountChargeValue(p.amount),

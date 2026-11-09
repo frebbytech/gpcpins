@@ -2,9 +2,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { setSelectedAccountId } from "../lib/account-store";
 import { whatsappApi, WhatsAppApiError } from "../lib/api";
-import { EMPTY_STATUS, EXPIRED_CODES, TRANSIENT_STATES, WA_EVENTS } from "../lib/constants";
+import {
+  EMPTY_STATUS,
+  EXPIRED_CODES,
+  TRANSIENT_STATES,
+  WA_EVENTS,
+} from "../lib/constants";
 import { ensureSocketConnected } from "../lib/socket";
-import { ACCOUNTS_KEY, useActiveAccountId, useWhatsAppAccounts } from "./useWhatsAppAccounts";
+import {
+  ACCOUNTS_KEY,
+  useActiveAccountId,
+  useWhatsAppAccounts,
+} from "./useWhatsAppAccounts";
 
 /**
  * One cache entry PER ACCOUNT is the only client-side truth about that account's connection.
@@ -28,7 +37,10 @@ function patchFromEvent(qc, sessionId, update) {
 }
 
 function setNotice(qc, accountId, notice) {
-  qc.setQueryData(statusKey(accountId), (prev) => ({ ...(prev ?? EMPTY_STATUS), notice }));
+  qc.setQueryData(statusKey(accountId), (prev) => ({
+    ...(prev ?? EMPTY_STATUS),
+    notice,
+  }));
 }
 
 const toNotice = (err) =>
@@ -44,8 +56,13 @@ const toNotice = (err) =>
  *                                  progress so the UI still progresses.
  * @param {boolean} enabled
  */
-export function useWhatsAppStatus(accountId, socketConnected = true, enabled = true) {
+export function useWhatsAppStatus(
+  accountId,
+  socketConnected = true,
+  enabled = true,
+) {
   const qc = useQueryClient();
+
   return useQuery({
     queryKey: statusKey(accountId),
     enabled,
@@ -59,9 +76,21 @@ export function useWhatsAppStatus(accountId, socketConnected = true, enabled = t
       return fresh;
     },
     staleTime: 30_000,
-    retry: (count, err) => err.status !== 401 && err.status !== 429 && count < 2,
-    refetchInterval: (query) =>
-      !socketConnected && query.state.data && TRANSIENT_STATES.has(query.state.data.status) ? 2500 : false,
+    retry: (count, err) =>
+      err.status !== 401 && err.status !== 429 && count < 2,
+    refetchInterval: (query) => {
+      console.log(
+        "refetchInterval",
+        query?.state?.data,
+        socketConnected,
+        TRANSIENT_STATES.has(query?.state?.data?.status),
+      );
+      return !socketConnected &&
+        query?.state?.data &&
+        TRANSIENT_STATES.has(query?.state?.data?.status)
+        ? 2500
+        : false;
+    },
   });
 }
 
@@ -75,10 +104,16 @@ export function useWhatsAppRealtime() {
   useEffect(() => {
     const socket = ensureSocketConnected();
     setConnected(socket.connected);
-    const refreshAccounts = () => void qc.invalidateQueries({ queryKey: ACCOUNTS_KEY });
+    const refreshAccounts = () =>
+      void qc.invalidateQueries({ queryKey: ACCOUNTS_KEY });
 
     const onSessionCreated = (p) => {
-      patchFromEvent(qc, p.sessionId, (s) => ({ ...s, hasSession: true, sessionId: p.sessionId, label: p.label ?? s.label }));
+      patchFromEvent(qc, p.sessionId, (s) => ({
+        ...s,
+        hasSession: true,
+        sessionId: p.sessionId,
+        label: p.label ?? s.label,
+      }));
       refreshAccounts();
     };
 
@@ -131,7 +166,11 @@ export function useWhatsAppRealtime() {
 
     // The server follows an expiry or failure notice with this event, so notices are kept.
     const onDisconnected = (p) => {
-      patchFromEvent(qc, p.sessionId, (s) => ({ ...s, status: p.status, ...CLEARED }));
+      patchFromEvent(qc, p.sessionId, (s) => ({
+        ...s,
+        status: p.status,
+        ...CLEARED,
+      }));
       refreshAccounts();
     };
 
@@ -146,7 +185,11 @@ export function useWhatsAppRealtime() {
       refreshAccounts();
     };
 
-    const onNotice = (p) => patchFromEvent(qc, p.sessionId, (s) => ({ ...s, notice: { code: p.code, message: p.message } }));
+    const onNotice = (p) =>
+      patchFromEvent(qc, p.sessionId, (s) => ({
+        ...s,
+        notice: { code: p.code, message: p.message },
+      }));
 
     const onAccountUpdated = (p) => {
       patchFromEvent(qc, p.sessionId, (s) => ({ ...s, label: p.label }));
@@ -230,14 +273,32 @@ export function useWhatsApp() {
   // While adding, the screen shows a blank "not connected" state for the new account, not the current one.
   const shownId = adding ? undefined : activeId;
   // Wait for the accounts list so the first fetch asks for the right account.
-  const query = useWhatsAppStatus(shownId, socketConnected, !adding && !accountsQuery.isLoading);
+  const query = useWhatsAppStatus(
+    shownId,
+    socketConnected,
+    !adding && !accountsQuery.isLoading,
+  );
 
-  const start = (options = {}) => ({ accountId: adding ? undefined : activeId, newAccount: adding || undefined, ...options });
-  const createSession = useSessionMutation(shownId, (v) => whatsappApi.createSession(start({ label: v?.label })));
-  const pairing = useSessionMutation(shownId, (v) => whatsappApi.requestPairingCode(v.phoneNumber, start({ label: v.label })));
-  const reconnect = useSessionMutation(shownId, () => whatsappApi.reconnect(activeId));
-  const disconnect = useSessionMutation(shownId, () => whatsappApi.disconnect(activeId));
-  const logout = useSessionMutation(shownId, () => whatsappApi.logout(activeId));
+  const start = (options = {}) => ({
+    accountId: adding ? undefined : activeId,
+    newAccount: adding || undefined,
+    ...options,
+  });
+  const createSession = useSessionMutation(shownId, (v) =>
+    whatsappApi.createSession(start({ label: v?.label })),
+  );
+  const pairing = useSessionMutation(shownId, (v) =>
+    whatsappApi.requestPairingCode(v.phoneNumber, start({ label: v.label })),
+  );
+  const reconnect = useSessionMutation(shownId, () =>
+    whatsappApi.reconnect(activeId),
+  );
+  const disconnect = useSessionMutation(shownId, () =>
+    whatsappApi.disconnect(activeId),
+  );
+  const logout = useSessionMutation(shownId, () =>
+    whatsappApi.logout(activeId),
+  );
 
   const rename = useMutation({
     mutationFn: (v) => whatsappApi.renameAccount(v.accountId, v.label),
@@ -251,7 +312,9 @@ export function useWhatsApp() {
     },
   });
 
-  const status = adding ? (qc.getQueryData(statusKey(undefined)) ?? EMPTY_STATUS) : (query.data ?? EMPTY_STATUS);
+  const status = adding
+    ? (qc.getQueryData(statusKey(undefined)) ?? EMPTY_STATUS)
+    : (query.data ?? EMPTY_STATUS);
   const notice = status.notice;
   const accounts = accountsQuery.data?.accounts ?? [];
   const maxAccounts = accountsQuery.data?.max ?? 1;
@@ -271,11 +334,13 @@ export function useWhatsApp() {
     dismissNotice: () => setNotice(qc, shownId, undefined),
 
     /** A request the user just made is still being answered. */
-    starting: createSession.isPending || pairing.isPending || reconnect.isPending,
+    starting:
+      createSession.isPending || pairing.isPending || reconnect.isPending,
     stopping: disconnect.isPending || logout.isPending,
 
     startQr: (label) => createSession.mutate({ label }, finishAdding),
-    startPairing: (phoneNumber, label) => pairing.mutate({ phoneNumber, label }, finishAdding),
+    startPairing: (phoneNumber, label) =>
+      pairing.mutate({ phoneNumber, label }, finishAdding),
     reconnect: () => reconnect.mutate(),
     disconnect: () => disconnect.mutate(),
     logout: () => logout.mutate(),

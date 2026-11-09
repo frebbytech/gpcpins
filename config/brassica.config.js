@@ -1,6 +1,6 @@
 "use strict";
 
-const client = require("./brassica.redisClient");
+// const client = require("./brassica.redisClient");
 
 /**
  * Centralised config with fail-fast env validation.
@@ -37,7 +37,8 @@ const config = {
     terminalId: require_env("ECOLLECT_TERMINAL_ID"),
     pin: require_env("ECOLLECT_PIN"),
     apiKey: require_env("ECOLLECT_API_KEY"),
-    merchant: process.env.ECOLLECT_MERCHANT || "TGL",
+    // merchant: process.env.ECOLLECT_MERCHANT || "TGL",
+    merchant:"TGL",
     timeout: 30_000,
   },
 

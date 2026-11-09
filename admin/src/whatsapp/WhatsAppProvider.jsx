@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { configureWhatsApp } from "./lib/config";
 import { createTokenFetcher } from "./lib/token";
 import { disconnectSocket } from "./lib/socket";
+import { useAuth } from "@/context/providers/AuthProvider";
 
 /**
  * Configures the WhatsApp module and gives it its own TanStack Query client, so it works
@@ -28,12 +29,19 @@ export function WhatsAppProvider({
   queryClient,
 }) {
   const [ownClient] = useState(() => queryClient ?? new QueryClient());
+  const { accessToken } = useAuth();
 
   // Configure during the first render so children's first fetch already has its settings.
   useState(() => {
     configureWhatsApp({
       serviceUrl,
-      getToken: getToken ?? createTokenFetcher({ url: tokenUrl, credentials: tokenCredentials, getHeaders: getTokenHeaders }),
+      getToken:
+        accessToken ??
+        createTokenFetcher({
+          url: tokenUrl,
+          credentials: tokenCredentials,
+          getHeaders: getTokenHeaders,
+        }),
     });
   });
 
@@ -41,12 +49,20 @@ export function WhatsAppProvider({
   useEffect(() => {
     configureWhatsApp({
       serviceUrl,
-      getToken: getToken ?? createTokenFetcher({ url: tokenUrl, credentials: tokenCredentials, getHeaders: getTokenHeaders }),
+      getToken:
+        accessToken ??
+        createTokenFetcher({
+          url: tokenUrl,
+          credentials: tokenCredentials,
+          getHeaders: getTokenHeaders,
+        }),
     });
-  }, [serviceUrl, getToken, tokenUrl, tokenCredentials, getTokenHeaders]);
+  }, [serviceUrl, accessToken, tokenUrl, tokenCredentials, getTokenHeaders]);
 
   // Leaving the module (e.g. the user signs out) must not leave their socket open.
   useEffect(() => () => disconnectSocket(), []);
 
-  return <QueryClientProvider client={ownClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={ownClient}>{children}</QueryClientProvider>
+  );
 }

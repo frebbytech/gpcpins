@@ -28,8 +28,11 @@ export class WhatsAppApiError extends Error {
 /** Seconds left on a JWT, read from its `exp` claim (not verified: display and caching only). */
 function secondsLeft(jwt) {
   try {
-    const payload = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    if (typeof payload.exp === "number") return Math.max(0, payload.exp - Math.floor(Date.now() / 1000));
+    const payload = JSON.parse(
+      atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    if (typeof payload.exp === "number")
+      return Math.max(0, payload.exp - Math.floor(Date.now() / 1000));
   } catch {
     /* not a readable JWT: use the fallback */
   }
@@ -39,17 +42,26 @@ function secondsLeft(jwt) {
 async function fetchToken() {
   let result;
   try {
-    result = await getConfig().getToken();
+    result = await getConfig().getToken;
   } catch (err) {
     if (err instanceof WhatsAppApiError) throw err;
-    throw new WhatsAppApiError("TOKEN_UNAVAILABLE", "Couldn't start a WhatsApp session. Try again.");
+    throw new WhatsAppApiError(
+      "TOKEN_UNAVAILABLE",
+      "Couldn't start a WhatsApp session. Try again.",
+    );
   }
 
-  const token = typeof result === "string" ? result : result?.token;
-  if (!token) throw new WhatsAppApiError("TOKEN_UNAVAILABLE", "Couldn't start a WhatsApp session. Try again.");
+  const token = typeof result === "string" ? result : result;
+
+  if (!token)
+    throw new WhatsAppApiError(
+      "TOKEN_UNAVAILABLE",
+      "Couldn't start a WhatsApp session. Try again.",
+    );
 
   // Relative lifetime, not an absolute time, so client clock skew can't break refresh.
-  const ttl = (typeof result === "object" && result.expiresIn) || secondsLeft(token);
+  const ttl =
+    (typeof result === "object" && result.expiresIn) || secondsLeft(token);
   cached = { token, expiresAtMs: Date.now() + ttl * 1000 };
   return token;
 }
@@ -75,9 +87,14 @@ export function clearAccessToken() {
  *
  * @param {{ url?: string, credentials?: RequestCredentials, getHeaders?: () => Record<string,string> | Promise<Record<string,string>> }} [options]
  */
-export function createTokenFetcher({ url = "/api/whatsapp/token", credentials = "include", getHeaders } = {}) {
+export function createTokenFetcher({
+  url = "/whatsapp/token",
+  credentials = "include",
+  getHeaders,
+} = {}) {
   return async function tokenFromBackend() {
     let res;
+
     try {
       res = await fetch(url, {
         method: "POST",
@@ -86,7 +103,10 @@ export function createTokenFetcher({ url = "/api/whatsapp/token", credentials = 
         headers: getHeaders ? await getHeaders() : undefined,
       });
     } catch {
-      throw new WhatsAppApiError("NETWORK_ERROR", "Can't reach the server. Check your connection and try again.");
+      throw new WhatsAppApiError(
+        "NETWORK_ERROR",
+        "Can't reach the server. Check your connection and try again.",
+      );
     }
     const body = await res.json().catch(() => null);
     if (!res.ok || !body?.token) {

@@ -25,5 +25,6 @@ export function getConfig() {
   if (!current) {
     throw new Error("WhatsApp is not configured. Wrap your page in <WhatsAppProvider>.");
   }
+
   return current;
 }
